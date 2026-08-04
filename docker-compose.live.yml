@@ -1,0 +1,49 @@
+# NAS live-development override.
+# Run from this directory:
+# docker compose -f docker-compose.yml -f docker-compose.live.yml up -d --build
+#
+# This mode mounts the project source into the containers and enables polling so
+# edits made in the NAS app folder are reflected by Next.js without rebuilding.
+# Use only on a trusted LAN/VPN; use docker-compose.yml for production exposure.
+
+services:
+  web:
+    build:
+      context: .
+      target: deps
+    command: ["sh", "-c", "npx prisma generate && npm run dev -- --hostname 0.0.0.0"]
+    environment:
+      NODE_ENV: development
+      NEXT_TELEMETRY_DISABLED: "1"
+      WATCHPACK_POLLING: "true"
+      CHOKIDAR_USEPOLLING: "true"
+    volumes:
+      - ./src:/app/src
+      - ./prisma:/app/prisma
+      - ./public:/app/public
+      - ./next.config.mjs:/app/next.config.mjs
+      - ./postcss.config.mjs:/app/postcss.config.mjs
+      - ./tailwind.config.ts:/app/tailwind.config.ts
+      - ./tsconfig.json:/app/tsconfig.json
+      - live_node_modules:/app/node_modules
+      - live_next:/app/.next
+      - ./uploads:/app/uploads
+
+  worker:
+    build:
+      context: .
+      target: deps
+    command: ["sh", "-c", "npx prisma generate && npx tsx watch src/worker/index.ts"]
+    environment:
+      NODE_ENV: development
+      NEXT_TELEMETRY_DISABLED: "1"
+      CHOKIDAR_USEPOLLING: "true"
+    volumes:
+      - ./src:/app/src
+      - ./prisma:/app/prisma
+      - live_node_modules:/app/node_modules
+      - ./uploads:/app/uploads
+
+volumes:
+  live_node_modules:
+  live_next:

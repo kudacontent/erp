@@ -1,0 +1,104 @@
+services:
+  migrate:
+    build:
+      context: .
+      target: migrator
+    container_name: kudalabs-erp-migrate
+    restart: "no"
+    env_file:
+      - .env
+    depends_on:
+      db:
+        condition: service_healthy
+
+  bootstrap:
+    build:
+      context: .
+      target: migrator
+    container_name: kudalabs-erp-bootstrap
+    restart: "no"
+    env_file:
+      - .env
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    command: ["node", "scripts/bootstrap-admin.mjs"]
+
+  web:
+    build:
+      context: .
+      target: runner
+    container_name: kudalabs-erp-web
+    restart: unless-stopped
+    env_file:
+      - .env
+    ports:
+      - "3000:3000"
+    depends_on:
+      bootstrap:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./uploads:/app/uploads
+
+  worker:
+    build:
+      context: .
+      target: worker
+    container_name: kudalabs-erp-worker
+    restart: unless-stopped
+    env_file:
+      - .env
+    depends_on:
+      bootstrap:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./uploads:/app/uploads
+
+  db:
+    image: ${POSTGRES_IMAGE:-postgres:16.14-alpine}
+    container_name: kudalabs-erp-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-erp}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-me}
+      POSTGRES_DB: ${POSTGRES_DB:-kudalabs_erp}
+    volumes:
+      - ./postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-erp} -d ${POSTGRES_DB:-kudalabs_erp}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  redis:
+    image: ${REDIS_IMAGE:-redis:7.4.7-alpine}
+    container_name: kudalabs-erp-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    volumes:
+      - ./redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  backup:
+    image: ${POSTGRES_IMAGE:-postgres:16.14-alpine}
+    container_name: kudalabs-erp-backup
+    restart: unless-stopped
+    env_file:
+      - .env
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ./backups:/backups
+      - ./scripts:/scripts:ro
+    command: sh /scripts/backup-loop.sh
