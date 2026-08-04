@@ -1,0 +1,34 @@
+name: Deploy to Synology
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Configure SSH
+        env:
+          NAS_SSH_KEY: ${{ secrets.NAS_SSH_KEY }}
+          NAS_KNOWN_HOSTS: ${{ secrets.NAS_KNOWN_HOSTS }}
+        run: |
+          install -d -m 700 "$HOME/.ssh"
+          printf '%s\n' "$NAS_SSH_KEY" > "$HOME/.ssh/nas_deploy_key"
+          chmod 600 "$HOME/.ssh/nas_deploy_key"
+          printf '%s\n' "$NAS_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
+
+      - name: Pull and rebuild on Synology
+        env:
+          NAS_HOST: ${{ secrets.NAS_HOST }}
+          NAS_PORT: ${{ secrets.NAS_PORT }}
+          NAS_USER: ${{ secrets.NAS_USER }}
+        run: |
+          ssh -i "$HOME/.ssh/nas_deploy_key" \
+            -p "${NAS_PORT:-2235}" \
+            "$NAS_USER@$NAS_HOST" \
+            'set -eu
+             cd /volume1/kudalabs_data/docker/kudalabs-erp
+             git pull --ff-only origin main
+             docker compose -p kuda-erp up -d --build --remove-orphans'
