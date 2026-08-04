@@ -8,6 +8,7 @@ dist
 coverage
 *.log
 .DS_Store
+@eaDir/
 uploads
 backups
 postgres-data

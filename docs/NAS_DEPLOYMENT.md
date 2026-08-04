@@ -5,7 +5,7 @@
 현재 `docker-compose.yml`이 사용하는 폴더 구조:
 
 ```text
-/volume1/kudalabs_data/docker/kudalabs-erp/
+/volume1/docker/kudalabs-erp/
 +- docker-compose.yml
 +- Dockerfile
 +- .env
@@ -15,7 +15,7 @@
 +- backups/
 ```
 
-이 저장소 전체를 `/volume1/kudalabs_data/docker/kudalabs-erp`에 배치한다. 데이터 폴더는
+이 저장소 전체를 `/volume1/docker/kudalabs-erp`에 배치한다. 데이터 폴더는
 첫 실행 때 자동으로 생성되지만, File Station에서 미리 만들어도 된다.
 
 ## 2. 환경변수
@@ -25,8 +25,8 @@
 `.env.synology.local`이 있다면 그것을 사용해도 된다.
 
 ```sh
-cp .env.synology.local /volume1/kudalabs_data/docker/kudalabs-erp/.env
-chmod 600 /volume1/kudalabs_data/docker/kudalabs-erp/.env
+cp .env.synology.local /volume1/docker/kudalabs-erp/.env
+chmod 600 /volume1/docker/kudalabs-erp/.env
 ```
 
 현재 접속 주소는 `https://erp.kuda.synology.me`로 설정한다. DNS가 NAS를 가리키고
@@ -51,10 +51,10 @@ Gemini와 Google 기능을 아직 사용하지 않으면 해당 API 값은 비�
 ### DSM Container Manager 화면에서 실행
 
 1. DSM 패키지 센터에서 **Container Manager**를 설치한다.
-2. File Station으로 저장소 파일을 `/volume1/kudalabs_data/docker/kudalabs-erp`에 올린다.
+2. File Station으로 저장소 파일을 `/volume1/docker/kudalabs-erp`에 올린다.
 3. `.env.synology.local`을 같은 폴더에 복사하고 이름을 `.env`로 바꾼다.
 4. Container Manager의 **프로젝트**에서 **생성**을 누른다.
-5. 프로젝트 이름은 `kudalabs-erp`, 경로는 `/volume1/kudalabs_data/docker/kudalabs-erp`로 지정한다.
+5. 프로젝트 이름은 `kudalabs-erp`, 경로는 `/volume1/docker/kudalabs-erp`로 지정한다.
 6. 소스에서 기존 `docker-compose.yml`을 선택하고 프로젝트를 빌드한다.
 7. `migrate`와 `bootstrap`이 정상 종료되고 `web`, `worker`, `db`, `redis`, `backup`이
    실행 중인지 확인한다.
@@ -148,8 +148,8 @@ HTTPS reverse proxy, Tailscale 또는 VPN을 사용한다.
 
 `backup` 컨테이너가 하루 1회 PostgreSQL dump를 `/backups`에 생성하고 30일이 지난 백업을 삭제한다.
 
-주 1회는 `/volume1/kudalabs_data/docker/kudalabs-erp/backups`와
-`/volume1/kudalabs_data/docker/kudalabs-erp/uploads`를 외장 디스크 또는 별도 저장소로
+주 1회는 `/volume1/docker/kudalabs-erp/backups`와
+`/volume1/docker/kudalabs-erp/uploads`를 외장 디스크 또는 별도 저장소로
 복제하는 것을 권장한다.
 
 ## 5. 외부 접속
@@ -221,7 +221,7 @@ docker compose run --rm migrate \
 정리 스크립트는 실수 방지를 위해 명시적인 확인 값이 없으면 실행되지 않는다.
 
 ```sh
-cd /volume1/kudalabs_data/docker/kudalabs-erp
+cd /volume1/docker/kudalabs-erp
 docker compose -p kuda-erp build migrate
 docker compose -p kuda-erp run --rm --no-deps \
   -e CLEAR_OPERATIONAL_DATA=YES \
@@ -240,7 +240,7 @@ Git push 때마다 NAS를 자동으로 업데이트하려면 다음 구성이 �
 4. GitHub Actions에서 push 시 NAS에 접속해 아래 명령을 실행한다.
 
 ```sh
-cd /volume1/kudalabs_data/docker/kudalabs-erp
+cd /volume1/docker/kudalabs-erp
 git pull --ff-only origin main
 docker compose -p kuda-erp up -d --build --remove-orphans
 ```
