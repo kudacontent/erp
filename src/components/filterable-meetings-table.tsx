@@ -57,7 +57,7 @@ export function FilterableMeetingsTable({
   }, [meetings, query, selectedStatus]);
 
   return (
-    <div className="rounded-md border border-line bg-white p-5">
+    <div className="min-w-0 rounded-md border border-line bg-white p-5">
       <ResponsiveFilterBar
         searchLabel="회의 검색"
         searchPlaceholder="회의명, 거래처, 참석자 검색"
@@ -72,7 +72,7 @@ export function FilterableMeetingsTable({
         검색 결과 {filteredMeetings.length}건
       </div>
 
-      <div className="overflow-x-auto rounded-md border border-line">
+      <div className="hidden overflow-x-auto rounded-md border border-line md:block">
         <table className="min-w-[720px] w-full border-collapse text-left text-sm">
           <thead className="bg-paper text-steel">
             <tr>
@@ -110,6 +110,37 @@ export function FilterableMeetingsTable({
             )}
           </tbody>
         </table>
+      </div>
+
+      <div className="space-y-3 md:hidden">
+        {filteredMeetings.length ? filteredMeetings.map((meeting) => (
+          <div key={meeting.id} className="rounded-md border border-line bg-paper/60 p-4">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="truncate font-bold text-ink">{meeting.title}</p>
+                <p className="mt-1 truncate text-xs text-steel">{meeting.type} · {meeting.client}</p>
+              </div>
+              <span className={`shrink-0 rounded-md px-2 py-1 text-xs font-medium ${meetingStatusClass(meeting.status)}`}>
+                {meeting.status}
+              </span>
+            </div>
+            <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+              <div className="rounded-md bg-white px-3 py-2">
+                <p className="text-steel">시간</p>
+                <p className="mt-1 truncate font-bold text-ink">{meeting.time}</p>
+              </div>
+              <div className="rounded-md bg-white px-3 py-2">
+                <p className="text-steel">참석</p>
+                <p className="mt-1 truncate font-bold text-ink">{meeting.attendees}</p>
+              </div>
+            </div>
+            <p className="mt-3 truncate text-xs text-steel">회의록: {meeting.minutes}</p>
+          </div>
+        )) : (
+          <div className="rounded-md border border-line bg-paper px-4 py-10 text-center text-sm font-medium text-steel">
+            조건에 맞는 회의가 없습니다.
+          </div>
+        )}
       </div>
     </div>
   );

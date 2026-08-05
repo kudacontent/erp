@@ -56,7 +56,7 @@ export default function HrPage() {
       </section>
 
       <section className="mb-6 grid gap-4 xl:grid-cols-[1fr_360px]">
-        <div className="rounded-md border border-line bg-white p-5">
+        <div className="min-w-0 rounded-md border border-line bg-white p-5">
           <ResponsiveFilterBar
             searchLabel="직원 검색"
             searchPlaceholder="이름, 부서, 직무 검색"
@@ -67,7 +67,7 @@ export default function HrPage() {
             onOptionChange={setSelectedStatus}
           />
 
-          <div className="overflow-x-auto rounded-md border border-line">
+          <div className="hidden overflow-x-auto rounded-md border border-line md:block">
             <table className="min-w-[760px] w-full border-collapse text-left text-sm">
               <thead className="bg-paper text-steel">
                 <tr>
@@ -115,6 +115,42 @@ export default function HrPage() {
                 )}
               </tbody>
             </table>
+          </div>
+
+          <div className="space-y-3 md:hidden">
+            {filteredEmployees.length ? filteredEmployees.map((employee) => (
+              <div key={employee.email} className="rounded-md border border-line bg-paper/60 p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex min-w-0 items-center gap-3">
+                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-white text-marine">
+                      <UserRoundCog className="h-5 w-5" />
+                    </span>
+                    <div className="min-w-0">
+                      <p className="truncate font-bold text-ink">{employee.name}</p>
+                      <p className="mt-1 truncate text-xs text-steel">{employee.department} · {employee.role}</p>
+                    </div>
+                  </div>
+                  <span className={`shrink-0 rounded-md px-2 py-1 text-xs font-medium ${statusClass(employee.status)}`}>
+                    {employee.status}
+                  </span>
+                </div>
+                <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+                  <div className="rounded-md bg-white px-3 py-2">
+                    <p className="text-steel">입사일</p>
+                    <p className="mt-1 font-bold text-ink">{employee.joined}</p>
+                  </div>
+                  <div className="rounded-md bg-white px-3 py-2">
+                    <p className="text-steel">연락처</p>
+                    <p className="mt-1 truncate font-bold text-ink">{employee.phone}</p>
+                  </div>
+                </div>
+                <p className="mt-3 truncate text-xs text-steel">{employee.email}</p>
+              </div>
+            )) : (
+              <div className="rounded-md border border-line bg-paper px-4 py-10 text-center text-sm font-medium text-steel">
+                {employees.length ? "조건에 맞는 직원이 없습니다." : "등록된 직원이 없습니다."}
+              </div>
+            )}
           </div>
         </div>
 

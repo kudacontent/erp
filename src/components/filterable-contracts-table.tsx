@@ -84,7 +84,7 @@ export function FilterableContractsTable({
   }, [contracts, query, selectedStatus]);
 
   return (
-    <div className="rounded-md border border-line bg-white p-5">
+    <div className="min-w-0 rounded-md border border-line bg-white p-5">
       <ResponsiveFilterBar
         searchLabel="계약 검색"
         searchPlaceholder="계약명, 거래처, 상태 검색"
@@ -99,7 +99,7 @@ export function FilterableContractsTable({
         검색 결과 {filteredContracts.length}건
       </div>
 
-      <div className="overflow-x-auto rounded-md border border-line">
+      <div className="hidden overflow-x-auto rounded-md border border-line md:block">
         <table className="min-w-[720px] w-full border-collapse text-left text-sm">
           <thead className="bg-paper text-steel">
             <tr>
@@ -146,6 +146,42 @@ export function FilterableContractsTable({
             )}
           </tbody>
         </table>
+      </div>
+
+      <div className="space-y-3 md:hidden">
+        {filteredContracts.length ? filteredContracts.map((contract) => (
+          <Link
+            key={contract.id}
+            href={`/contracts/${contract.slug}`}
+            className="block rounded-md border border-line bg-paper/60 p-4 transition hover:border-marine hover:bg-[#e8f5fb]"
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="truncate font-bold text-ink">{contract.title}</p>
+                <p className="mt-1 truncate text-xs text-steel">{contract.client} · {contract.id}</p>
+              </div>
+              <p className="shrink-0 text-sm font-bold text-ink">{contract.total}</p>
+            </div>
+            <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+              <div className="rounded-md bg-white px-3 py-2">
+                <p className="text-steel">세금계산서</p>
+                <p className="mt-1 truncate font-bold text-marine">{contract.billing}</p>
+              </div>
+              <div className="rounded-md bg-white px-3 py-2">
+                <p className="text-steel">입금</p>
+                <p className="mt-1 truncate font-bold text-marine">{contract.payment}</p>
+              </div>
+            </div>
+            <div className="mt-3 flex items-center justify-between gap-3 text-xs text-steel">
+              <span>예정일</span>
+              <span className="font-medium text-ink">{contract.due}</span>
+            </div>
+          </Link>
+        )) : (
+          <div className="rounded-md border border-line bg-paper px-4 py-10 text-center text-sm font-medium text-steel">
+            조건에 맞는 계약이 없습니다.
+          </div>
+        )}
       </div>
     </div>
   );

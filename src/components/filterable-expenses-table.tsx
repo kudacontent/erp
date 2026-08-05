@@ -59,7 +59,7 @@ export function FilterableExpensesTable({
   }, [expenses, query, selectedStatus]);
 
   return (
-    <div className="rounded-md border border-line bg-white p-5">
+    <div className="min-w-0 rounded-md border border-line bg-white p-5">
       <ResponsiveFilterBar
         searchLabel="지출 검색"
         searchPlaceholder="지출명, 공급업체, 카테고리 검색"
@@ -74,7 +74,7 @@ export function FilterableExpensesTable({
         검색 결과 {filteredExpenses.length}건
       </div>
 
-      <div className="overflow-x-auto rounded-md border border-line">
+      <div className="hidden overflow-x-auto rounded-md border border-line md:block">
         <table className="min-w-[720px] w-full border-collapse text-left text-sm">
           <thead className="bg-paper text-steel">
             <tr>
@@ -115,6 +115,33 @@ export function FilterableExpensesTable({
             )}
           </tbody>
         </table>
+      </div>
+
+      <div className="space-y-3 md:hidden">
+        {filteredExpenses.length ? filteredExpenses.map((expense) => (
+          <div key={expense.id} className="rounded-md border border-line bg-paper/60 p-4">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="truncate font-bold text-ink">{expense.title}</p>
+                <p className="mt-1 truncate text-xs text-steel">{expense.vendor} · {expense.spentAt}</p>
+              </div>
+              <p className="shrink-0 text-sm font-bold text-ink">{expense.amount}</p>
+            </div>
+            <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
+              <span className="rounded-md bg-white px-2 py-1 text-steel">{expense.category}</span>
+              <span className="rounded-md bg-white px-2 py-1 text-steel">{expense.method}</span>
+              <span className="rounded-md bg-white px-2 py-1 text-steel">{expense.receipt}</span>
+            </div>
+            <div className="mt-3 flex items-center justify-between gap-3 text-xs">
+              <span className="text-steel">승인 상태</span>
+              <span className={`rounded-md px-2 py-1 font-medium ${approvalClass(expense.approval)}`}>{expense.approval}</span>
+            </div>
+          </div>
+        )) : (
+          <div className="rounded-md border border-line bg-paper px-4 py-10 text-center text-sm font-medium text-steel">
+            조건에 맞는 지출이 없습니다.
+          </div>
+        )}
       </div>
     </div>
   );

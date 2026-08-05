@@ -54,7 +54,7 @@ export function FilterableClientsTable({
   }, [clients, query, selectedType]);
 
   return (
-    <div className="rounded-md border border-line bg-white p-5">
+    <div className="min-w-0 rounded-md border border-line bg-white p-5">
       <ResponsiveFilterBar
         searchLabel="거래처 검색"
         searchPlaceholder="거래처명, 담당자, 이메일 검색"
@@ -69,7 +69,7 @@ export function FilterableClientsTable({
         검색 결과 {filteredClients.length}건
       </div>
 
-      <div className="overflow-x-auto rounded-md border border-line">
+      <div className="hidden overflow-x-auto rounded-md border border-line md:block">
         <table className="min-w-[720px] w-full border-collapse text-left text-sm">
           <thead className="bg-paper text-steel">
             <tr>
@@ -123,6 +123,46 @@ export function FilterableClientsTable({
             )}
           </tbody>
         </table>
+      </div>
+
+      <div className="space-y-3 md:hidden">
+        {filteredClients.length ? filteredClients.map((client) => (
+          <Link
+            key={client.slug}
+            href={`/clients/${client.slug}`}
+            className="block rounded-md border border-line bg-paper/60 p-4 transition hover:border-marine hover:bg-[#e8f5fb]"
+          >
+            <div className="flex items-start gap-3">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-white text-marine">
+                <Building2 className="h-5 w-5" />
+              </span>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="truncate font-bold text-ink">{client.name}</p>
+                    <p className="mt-1 text-xs text-steel">{client.type}</p>
+                  </div>
+                  <span className="shrink-0 rounded-md bg-white px-2 py-1 text-xs font-medium text-marine">{client.status}</span>
+                </div>
+                <p className="mt-3 truncate text-sm font-medium text-ink">{client.contact || "담당자 미등록"}</p>
+                <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+                  <div className="rounded-md bg-white px-3 py-2">
+                    <p className="text-steel">계약</p>
+                    <p className="mt-1 font-bold text-ink">{client.contracts}건</p>
+                  </div>
+                  <div className="rounded-md bg-white px-3 py-2">
+                    <p className="text-steel">최근 미팅</p>
+                    <p className="mt-1 truncate font-bold text-ink">{client.lastMeeting}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </Link>
+        )) : (
+          <div className="rounded-md border border-line bg-paper px-4 py-10 text-center text-sm font-medium text-steel">
+            조건에 맞는 거래처가 없습니다.
+          </div>
+        )}
       </div>
     </div>
   );
