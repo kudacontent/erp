@@ -35,4 +35,5 @@ jobs:
              find . \( -path "./.git" -o -path "./postgres-data" -o -path "./redis-data" -o -path "./uploads" -o -path "./backups" \) -prune -o -type d -name "@eaDir" -prune -exec rm -rf {} \;
              git pull --ff-only origin main
              find . \( -path "./.git" -o -path "./postgres-data" -o -path "./redis-data" -o -path "./uploads" -o -path "./backups" \) -prune -o -type d -name "@eaDir" -prune -exec rm -rf {} \;
+             sudo -n /usr/local/bin/docker compose -p kuda-erp rm -f migrate bootstrap || true
              sudo -n /usr/local/bin/docker compose -p kuda-erp up -d --build --remove-orphans'
