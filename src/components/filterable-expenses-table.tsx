@@ -61,7 +61,7 @@ export function FilterableExpensesTable({
   return (
     <div className="rounded-md border border-line bg-white p-5">
       <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-        <label className="flex min-w-72 items-center gap-2 rounded-md border border-line bg-paper px-3 py-2 text-sm text-steel">
+        <label className="flex w-full min-w-0 items-center gap-2 rounded-md border border-line bg-paper px-3 py-2 text-sm text-steel sm:min-w-72">
           <Search className="h-4 w-4" />
           <input
             aria-label="지출 검색"
@@ -92,8 +92,8 @@ export function FilterableExpensesTable({
         검색 결과 {filteredExpenses.length}건
       </div>
 
-      <div className="overflow-hidden rounded-md border border-line">
-        <table className="w-full border-collapse text-left text-sm">
+      <div className="overflow-x-auto rounded-md border border-line">
+        <table className="min-w-[720px] w-full border-collapse text-left text-sm">
           <thead className="bg-paper text-steel">
             <tr>
               <th className="px-4 py-3 font-medium">지출</th>

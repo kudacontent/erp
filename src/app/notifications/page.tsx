@@ -29,7 +29,7 @@ export default function NotificationsPage() {
 
       <section className="rounded-md border border-line bg-white p-5">
         <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-          <div className="flex min-w-72 items-center gap-2 rounded-md border border-line bg-paper px-3 py-2 text-sm text-steel">
+          <div className="flex w-full min-w-0 items-center gap-2 rounded-md border border-line bg-paper px-3 py-2 text-sm text-steel sm:min-w-72">
             <Search className="h-4 w-4" />
             알림 제목, 업무 영역 검색
           </div>

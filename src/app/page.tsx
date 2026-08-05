@@ -55,7 +55,7 @@ export default function Home() {
       <section className="grid items-stretch gap-5 px-5 py-6 sm:px-8 lg:grid-cols-[minmax(0,1fr)_340px]">
         <div className="min-w-0 space-y-5">
           <section className="rounded-md border border-line bg-white p-5 shadow-[0_14px_35px_rgba(9,34,53,0.08)]">
-            <div className="mb-5 flex items-center justify-between">
+            <div className="mb-5 flex flex-wrap items-center justify-between gap-2">
               <h3 className="text-lg font-bold text-ink">업무 현황</h3>
               <p className="text-sm font-medium text-steel">메뉴별 처리 상태</p>
             </div>
@@ -79,7 +79,7 @@ export default function Home() {
           </section>
 
           <section className="rounded-md border border-line bg-white p-5 shadow-[0_14px_35px_rgba(9,34,53,0.08)]">
-            <div className="mb-5 flex items-center justify-between">
+            <div className="mb-5 flex flex-wrap items-center justify-between gap-2">
               <h3 className="text-lg font-bold text-ink">업무 연결</h3>
               <p className="text-sm font-medium text-steel">거래 시작부터 정산 마감까지</p>
             </div>
@@ -103,16 +103,16 @@ export default function Home() {
           </section>
 
           <section className="overflow-hidden rounded-md border border-line bg-white p-5 shadow-[0_14px_35px_rgba(9,34,53,0.08)]">
-            <div className="mb-5 flex items-center justify-between">
+            <div className="mb-5 flex flex-wrap items-center justify-between gap-2">
               <h3 className="text-lg font-bold text-ink">업무 처리 현황</h3>
-              <div className="flex gap-4 text-sm font-medium text-steel">
+              <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm font-medium text-steel">
                 <span>전체 0</span>
                 <span>진행 0</span>
                 <span>대기 0</span>
               </div>
             </div>
-            <div className="overflow-hidden rounded-md border border-line">
-              <table className="w-full border-collapse text-left text-sm">
+            <div className="overflow-x-auto rounded-md border border-line">
+              <table className="min-w-[680px] w-full border-collapse text-left text-sm">
                 <thead className="bg-paper text-steel">
                   <tr>
                     <th className="px-4 py-3 font-medium">구분</th>
@@ -151,7 +151,7 @@ export default function Home() {
                 <ChevronRight className="h-4 w-4" />
               </div>
             </div>
-            <div className="grid grid-cols-7 gap-1 text-center text-xs font-bold text-steel">
+            <div className="grid min-w-[280px] grid-cols-7 gap-1 text-center text-xs font-bold text-steel">
               {["일", "월", "화", "수", "목", "금", "토"].map((day) => (
                 <span key={day} className="py-2">{day}</span>
               ))}
