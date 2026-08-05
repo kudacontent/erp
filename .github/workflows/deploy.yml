@@ -33,4 +33,4 @@ jobs:
              cd /volume1/docker/kudalabs-erp
              find .git/refs -type d -name "@eaDir" -prune -exec rm -rf {} \;
              git pull --ff-only origin main
-             docker compose -p kuda-erp up -d --build --remove-orphans'
+             sudo -n /usr/local/bin/docker compose -p kuda-erp up -d --build --remove-orphans'
