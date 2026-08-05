@@ -232,7 +232,7 @@ export function ReceiptOcrForm() {
             <button
               type="button"
               onClick={saveExpense}
-              disabled={status !== "done" || status === "saving"}
+              disabled={status !== "done"}
               className="inline-flex w-full items-center justify-center gap-2 rounded-md border border-marine bg-white px-3 py-2.5 text-sm font-medium text-marine disabled:opacity-50"
             >
               {status === "saving" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
