@@ -29,6 +29,7 @@ jobs:
             -p "${NAS_PORT:-2235}" \
             "$NAS_USER@$NAS_HOST" \
             'set -eu
+             export PATH="/usr/local/bin:/var/packages/ContainerManager/target/usr/bin:/var/packages/Docker/target/usr/bin:$PATH"
              cd /volume1/docker/kudalabs-erp
              git pull --ff-only origin main
              docker compose -p kuda-erp up -d --build --remove-orphans'
