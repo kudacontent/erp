@@ -2,6 +2,13 @@ import { prisma } from "@/lib/prisma";
 import type { ClientListItem } from "@/lib/clients-data";
 import { clientTypeLabels } from "@/lib/client-schema";
 
+type ClientActivity = {
+  date: string;
+  title: string;
+  owner: string;
+  type: string;
+};
+
 export async function getClientsForList(): Promise<ClientListItem[]> {
   if (!process.env.DATABASE_URL) {
     return [];
@@ -104,7 +111,7 @@ export async function getClientDetail(slug: string) {
         amount: `${Number(contract.totalAmount).toLocaleString("ko-KR")}만원`,
         due: contract.dueDate ? contract.dueDate.toISOString().slice(0, 10) : "-"
       })),
-      activities: []
+      activities: [] as ClientActivity[]
     };
   } catch {
     return null;
