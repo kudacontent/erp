@@ -1,11 +1,13 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Loader2, Mic, Square } from "lucide-react";
 
 type RecorderStatus = "idle" | "recording" | "transcribing" | "saved" | "error";
 
 export function MeetingRecorder() {
+  const router = useRouter();
   const [title, setTitle] = useState("");
   const [meetingType, setMeetingType] = useState("내부 회의");
   const [location, setLocation] = useState("");
@@ -38,6 +40,7 @@ export function MeetingRecorder() {
 
       setStatus("saved");
       setMessage("회의 녹음과 전사된 회의록이 저장되었습니다.");
+      router.refresh();
       setTitle("");
       setLocation("");
       setAgenda("");

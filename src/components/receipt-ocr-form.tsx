@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Camera, Loader2, Save, Upload } from "lucide-react";
 
 type ReceiptResult = {
@@ -42,6 +43,7 @@ function formatMoney(value: number) {
 }
 
 export function ReceiptOcrForm() {
+  const router = useRouter();
   const [file, setFile] = useState<File | null>(null);
   const [result, setResult] = useState<ReceiptResult>(emptyResult);
   const [status, setStatus] = useState<"idle" | "analyzing" | "done" | "saving" | "saved" | "error">("idle");
@@ -127,6 +129,7 @@ export function ReceiptOcrForm() {
 
       setStatus("saved");
       setMessage("카드 영수증과 지출이 저장되었습니다.");
+      router.refresh();
     } catch {
       setStatus("error");
       setMessage("네트워크 오류로 지출 저장에 실패했습니다.");
