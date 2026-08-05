@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { Search } from "lucide-react";
+import { ResponsiveFilterBar } from "@/components/responsive-filter-bar";
 
 type ContractListItem = {
   slug: string;
@@ -85,33 +85,15 @@ export function FilterableContractsTable({
 
   return (
     <div className="rounded-md border border-line bg-white p-5">
-      <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-        <label className="flex w-full min-w-0 items-center gap-2 rounded-md border border-line bg-paper px-3 py-2 text-sm text-steel sm:min-w-72">
-          <Search className="h-4 w-4" />
-          <input
-            aria-label="계약 검색"
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder="계약명, 거래처, 상태 검색"
-            className="w-full bg-transparent text-ink outline-none placeholder:text-steel"
-          />
-        </label>
-        <div className="flex flex-wrap gap-2">
-          {statusOptions.map((item) => (
-            <button
-              key={item}
-              type="button"
-              onClick={() => setSelectedStatus(item)}
-              className={[
-                "rounded-md border px-3 py-2 text-sm font-medium",
-                item === selectedStatus ? "border-marine bg-marine text-white" : "border-line bg-white text-steel"
-              ].join(" ")}
-            >
-              {item}
-            </button>
-          ))}
-        </div>
-      </div>
+      <ResponsiveFilterBar
+        searchLabel="계약 검색"
+        searchPlaceholder="계약명, 거래처, 상태 검색"
+        searchValue={query}
+        onSearchChange={setQuery}
+        options={statusOptions}
+        selectedOption={selectedStatus}
+        onOptionChange={setSelectedStatus}
+      />
 
       <div className="mb-3 text-sm font-medium text-steel">
         검색 결과 {filteredContracts.length}건
