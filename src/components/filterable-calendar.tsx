@@ -90,7 +90,7 @@ export function FilterableCalendar({
             <h3 className="text-lg font-bold text-ink">일정 현황</h3>
             <p className="mt-1 text-sm font-medium text-steel">표시 일정 {visibleEventCount}건</p>
           </div>
-          <label className="flex min-w-72 items-center gap-2 rounded-md border border-line bg-paper px-3 py-2 text-sm text-steel">
+          <label className="flex w-full min-w-0 items-center gap-2 rounded-md border border-line bg-paper px-3 py-2 text-sm text-steel sm:min-w-72">
             <Search className="h-4 w-4" />
             <input
               aria-label="일정 검색"
@@ -102,7 +102,8 @@ export function FilterableCalendar({
           </label>
         </div>
 
-        <div className="grid grid-cols-7 overflow-hidden rounded-md border border-line text-sm">
+        <div className="overflow-x-auto rounded-md border border-line">
+          <div className="grid min-w-[560px] grid-cols-7 overflow-hidden text-sm">
           {["월", "화", "수", "목", "금", "토", "일"].map((day) => (
             <div key={day} className="border-b border-line bg-paper px-3 py-2 text-center font-medium text-steel">
               {day}
@@ -130,6 +131,7 @@ export function FilterableCalendar({
               </div>
             </div>
           ))}
+          </div>
         </div>
       </div>
 

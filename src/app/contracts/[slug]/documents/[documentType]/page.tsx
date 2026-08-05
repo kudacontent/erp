@@ -33,7 +33,7 @@ export default async function ContractDocumentPage({
             </Link>
             <h2 className="text-3xl font-bold text-ink">견적서</h2>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <button className="inline-flex items-center gap-2 rounded-md border border-line bg-white px-3 py-2 text-sm font-medium text-ink">
               미리보기
             </button>
@@ -45,7 +45,7 @@ export default async function ContractDocumentPage({
         </section>
 
         <section className="grid gap-4 xl:grid-cols-[1fr_360px]">
-          <div className="rounded-md border border-line bg-white p-8">
+          <div className="rounded-md border border-line bg-white p-5 sm:p-8">
             <div className="mb-8 flex items-start justify-between border-b-2 border-ink pb-6">
               <div>
                 <p className="text-sm font-bold text-marine">KUDALABS</p>
@@ -73,7 +73,8 @@ export default async function ContractDocumentPage({
               </div>
             </div>
 
-            <table className="mb-6 w-full border-collapse text-sm">
+            <div className="mb-6 overflow-x-auto rounded-md border border-line">
+              <table className="min-w-[640px] w-full border-collapse text-sm">
               <thead className="bg-paper text-steel">
                 <tr>
                   <th className="border border-line px-3 py-3 text-left font-medium">품목</th>
@@ -92,7 +93,8 @@ export default async function ContractDocumentPage({
                   <td className="border border-line px-3 py-4 text-right font-bold text-ink">{contract.total}</td>
                 </tr>
               </tbody>
-            </table>
+              </table>
+            </div>
 
             <div className="mb-6 grid gap-4 md:grid-cols-[1fr_280px]">
               <div className="rounded-md border border-line p-4">
@@ -158,7 +160,7 @@ export default async function ContractDocumentPage({
             </Link>
             <h2 className="text-3xl font-bold text-ink">계약서</h2>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <button className="inline-flex items-center gap-2 rounded-md border border-line bg-white px-3 py-2 text-sm font-medium text-ink">
               미리보기
             </button>
@@ -170,7 +172,7 @@ export default async function ContractDocumentPage({
         </section>
 
         <section className="grid gap-4 xl:grid-cols-[1fr_360px]">
-          <div className="rounded-md border border-line bg-white p-8">
+          <div className="rounded-md border border-line bg-white p-5 sm:p-8">
             <div className="mb-8 border-b-2 border-ink pb-6 text-center">
               <p className="text-sm font-bold text-marine">KUDALABS</p>
               <h3 className="mt-2 text-4xl font-bold tracking-wide text-ink">용역 계약서</h3>
@@ -279,7 +281,7 @@ export default async function ContractDocumentPage({
             </Link>
             <h2 className="text-3xl font-bold text-ink">지출결의서</h2>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <button className="inline-flex items-center gap-2 rounded-md border border-line bg-white px-3 py-2 text-sm font-medium text-ink">
               미리보기
             </button>
@@ -291,7 +293,7 @@ export default async function ContractDocumentPage({
         </section>
 
         <section className="grid gap-4 xl:grid-cols-[1fr_360px]">
-          <div className="rounded-md border border-line bg-white p-8">
+          <div className="rounded-md border border-line bg-white p-5 sm:p-8">
             <div className="mb-8 flex items-start justify-between border-b-2 border-ink pb-6">
               <div>
                 <p className="text-sm font-bold text-marine">KUDALABS</p>
@@ -319,7 +321,8 @@ export default async function ContractDocumentPage({
               </div>
             </div>
 
-            <table className="mb-6 w-full border-collapse text-sm">
+            <div className="mb-6 overflow-x-auto rounded-md border border-line">
+              <table className="min-w-[640px] w-full border-collapse text-sm">
               <thead className="bg-paper text-steel">
                 <tr>
                   <th className="border border-line px-3 py-3 text-left font-medium">지출 항목</th>
@@ -336,7 +339,8 @@ export default async function ContractDocumentPage({
                   </tr>
                 ))}
               </tbody>
-            </table>
+              </table>
+            </div>
 
             <div className="grid gap-4 md:grid-cols-[1fr_280px]">
               <section className="rounded-md border border-line p-4">
