@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { KeyRound, Loader2, Plus, RefreshCw, ShieldCheck, UserRoundCog } from "lucide-react";
+import { KeyRound, Loader2, Plus, RefreshCw, ShieldCheck, Trash2, UserRoundCog } from "lucide-react";
 
 type Role = "CEO" | "ADMIN" | "OPERATIONS" | "ACCOUNTING" | "HR" | "EMPLOYEE" | "AUDITOR";
 type Status = "ACTIVE" | "INACTIVE" | "ARCHIVED";
@@ -33,6 +33,7 @@ const statusLabels: Record<Status, string> = {
 const roleOptions: Role[] = ["ADMIN", "OPERATIONS", "ACCOUNTING", "HR", "EMPLOYEE", "AUDITOR"];
 
 export function AdminUsersPanel({ currentUserRole }: { currentUserRole: Role }) {
+  const canManageUsers = currentUserRole === "CEO";
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -65,6 +66,7 @@ export function AdminUsersPanel({ currentUserRole }: { currentUserRole: Role }) 
 
   async function createUser(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (!canManageUsers) return;
     setSaving(true);
     setMessage("");
     try {
@@ -85,6 +87,7 @@ export function AdminUsersPanel({ currentUserRole }: { currentUserRole: Role }) 
   }
 
   async function updateUser(user: User, changes: Partial<Pick<User, "role" | "status">> & { password?: string }) {
+    if (!canManageUsers) return;
     setMessage("");
     const response = await fetch(`/api/admin/users/${user.id}`, {
       method: "PATCH",
@@ -100,9 +103,26 @@ export function AdminUsersPanel({ currentUserRole }: { currentUserRole: Role }) 
   }
 
   async function resetPassword(user: User) {
+    if (!canManageUsers) return;
     const password = window.prompt(`${user.name}님의 새 비밀번호(12자 이상)를 입력하세요.`);
     if (!password) return;
     await updateUser(user, { password });
+  }
+
+  async function archiveUser(user: User) {
+    if (!canManageUsers || user.status === "ARCHIVED") return;
+    if (!window.confirm(`${user.name} 계정을 보관 처리할까요? 보관된 계정은 로그인할 수 없습니다.`)) return;
+
+    const response = await fetch(`/api/admin/users/${user.id}`, { method: "DELETE" });
+    const data = await response.json();
+
+    if (!response.ok) {
+      setMessage(data.message ?? "계정 삭제에 실패했습니다.");
+      return;
+    }
+
+    setUsers((current) => current.map((item) => (item.id === user.id ? { ...item, status: "ARCHIVED" } : item)));
+    setMessage(data.message ?? "계정을 보관 처리했습니다.");
   }
 
   return (
@@ -129,18 +149,18 @@ export function AdminUsersPanel({ currentUserRole }: { currentUserRole: Role }) 
         <div className="mb-5 flex items-center justify-between gap-3">
           <div>
             <h3 className="font-bold text-ink">직원 계정 추가</h3>
-            <p className="mt-1 text-sm text-steel">비밀번호는 12자 이상으로 설정하세요.</p>
+            <p className="mt-1 text-sm text-steel">{canManageUsers ? "비밀번호는 12자 이상으로 설정하세요." : "계정 생성·변경·삭제는 CEO 전용입니다."}</p>
           </div>
           <Plus className="h-5 w-5 text-marine" />
         </div>
         <form onSubmit={createUser} className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
-          <input required type="text" placeholder="이름" value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} className="rounded-md border border-line bg-paper px-3 py-2 text-sm outline-none focus:border-marine" />
-          <input required type="email" placeholder="이메일" value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} className="rounded-md border border-line bg-paper px-3 py-2 text-sm outline-none focus:border-marine" />
-          <input required minLength={12} type="password" placeholder="초기 비밀번호" value={form.password} onChange={(event) => setForm({ ...form, password: event.target.value })} className="rounded-md border border-line bg-paper px-3 py-2 text-sm outline-none focus:border-marine" />
-          <select value={form.role} onChange={(event) => setForm({ ...form, role: event.target.value as Role })} className="rounded-md border border-line bg-paper px-3 py-2 text-sm outline-none focus:border-marine">
+          <input disabled={!canManageUsers} required type="text" placeholder="이름" value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} className="rounded-md border border-line bg-paper px-3 py-2 text-sm outline-none focus:border-marine disabled:cursor-not-allowed disabled:opacity-50" />
+          <input disabled={!canManageUsers} required type="email" placeholder="이메일" value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} className="rounded-md border border-line bg-paper px-3 py-2 text-sm outline-none focus:border-marine disabled:cursor-not-allowed disabled:opacity-50" />
+          <input disabled={!canManageUsers} required minLength={12} type="password" placeholder="초기 비밀번호" value={form.password} onChange={(event) => setForm({ ...form, password: event.target.value })} className="rounded-md border border-line bg-paper px-3 py-2 text-sm outline-none focus:border-marine disabled:cursor-not-allowed disabled:opacity-50" />
+          <select disabled={!canManageUsers} value={form.role} onChange={(event) => setForm({ ...form, role: event.target.value as Role })} className="rounded-md border border-line bg-paper px-3 py-2 text-sm outline-none focus:border-marine disabled:cursor-not-allowed disabled:opacity-50">
             {availableRoles.map((role) => <option key={role} value={role}>{roleLabels[role]}</option>)}
           </select>
-          <button type="submit" disabled={saving} className="inline-flex items-center justify-center gap-2 rounded-md bg-marine px-3 py-2 text-sm font-bold text-white disabled:opacity-60">
+          <button type="submit" disabled={!canManageUsers || saving} className="inline-flex items-center justify-center gap-2 rounded-md bg-marine px-3 py-2 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-60">
             {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
             계정 추가
           </button>
@@ -151,7 +171,7 @@ export function AdminUsersPanel({ currentUserRole }: { currentUserRole: Role }) 
         <div className="flex items-center justify-between border-b border-line px-5 py-4">
           <div>
             <h3 className="font-bold text-ink">계정 목록</h3>
-            <p className="mt-1 text-sm text-steel">관리자 계정은 CEO만 추가·변경할 수 있습니다.</p>
+            <p className="mt-1 text-sm text-steel">{canManageUsers ? "관리자 계정은 CEO만 추가·변경·삭제할 수 있습니다." : "조회 전용입니다. 계정 관리는 CEO로 로그인하세요."}</p>
           </div>
           <button type="button" onClick={() => void loadUsers()} className="inline-flex items-center gap-2 rounded-md border border-line px-3 py-2 text-sm font-medium text-steel hover:text-marine">
             <RefreshCw className="h-4 w-4" /> 새로고침
@@ -169,9 +189,9 @@ export function AdminUsersPanel({ currentUserRole }: { currentUserRole: Role }) 
                   <tr key={user.id}>
                     <td className="px-5 py-4 font-bold text-ink">{user.name}</td>
                     <td className="px-5 py-4 text-steel">{user.email}</td>
-                    <td className="px-5 py-4"><select value={user.role} disabled={user.role === "CEO" && currentUserRole !== "CEO"} onChange={(event) => void updateUser(user, { role: event.target.value as Role })} className="rounded-md border border-line bg-paper px-2 py-1.5 text-sm text-ink"><option value="CEO">{roleLabels.CEO}</option>{roleOptions.map((role) => <option key={role} value={role}>{roleLabels[role]}</option>)}</select></td>
-                    <td className="px-5 py-4"><button type="button" onClick={() => void updateUser(user, { status: user.status === "ACTIVE" ? "INACTIVE" : "ACTIVE" })} disabled={user.role === "CEO" && currentUserRole !== "CEO"} className={user.status === "ACTIVE" ? "rounded-md bg-[#ecfdf3] px-2 py-1 text-xs font-bold text-[#027a48]" : "rounded-md bg-paper px-2 py-1 text-xs font-bold text-steel"}>{statusLabels[user.status]}</button></td>
-                    <td className="px-5 py-4"><button type="button" onClick={() => void resetPassword(user)} className="text-sm font-medium text-marine hover:underline">비밀번호 재설정</button></td>
+                    <td className="px-5 py-4"><select value={user.role} disabled={!canManageUsers || user.role === "CEO" && currentUserRole !== "CEO"} onChange={(event) => void updateUser(user, { role: event.target.value as Role })} className="rounded-md border border-line bg-paper px-2 py-1.5 text-sm text-ink disabled:cursor-not-allowed disabled:opacity-50"><option value="CEO">{roleLabels.CEO}</option>{roleOptions.map((role) => <option key={role} value={role}>{roleLabels[role]}</option>)}</select></td>
+                    <td className="px-5 py-4"><button type="button" onClick={() => void updateUser(user, { status: user.status === "ACTIVE" ? "INACTIVE" : "ACTIVE" })} disabled={!canManageUsers || user.role === "CEO" && currentUserRole !== "CEO" || user.status === "ARCHIVED"} className={user.status === "ACTIVE" ? "rounded-md bg-[#ecfdf3] px-2 py-1 text-xs font-bold text-[#027a48] disabled:cursor-not-allowed disabled:opacity-50" : "rounded-md bg-paper px-2 py-1 text-xs font-bold text-steel disabled:cursor-not-allowed disabled:opacity-50"}>{statusLabels[user.status]}</button></td>
+                    <td className="px-5 py-4"><div className="flex items-center gap-3"><button type="button" onClick={() => void resetPassword(user)} disabled={!canManageUsers || user.status === "ARCHIVED"} className="text-sm font-medium text-marine hover:underline disabled:cursor-not-allowed disabled:opacity-50">비밀번호 재설정</button><button type="button" onClick={() => void archiveUser(user)} disabled={!canManageUsers || user.status === "ARCHIVED"} className="inline-flex items-center gap-1 text-sm font-medium text-[#b42318] hover:underline disabled:cursor-not-allowed disabled:opacity-50" title="계정 보관"><Trash2 className="h-4 w-4" />삭제</button></div></td>
                   </tr>
                 ))}
               </tbody>

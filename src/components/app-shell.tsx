@@ -3,12 +3,17 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Bell, LogOut, Menu, Search, ServerCog, Settings } from "lucide-react";
+import { Bell, LogOut, Menu, Search, ServerCog, Settings, X } from "lucide-react";
 import { modules } from "@/lib/dashboard-data";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [user, setUser] = useState<{ name: string; email: string; role: string } | null>(null);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  useEffect(() => {
+    setMobileMenuOpen(false);
+  }, [pathname]);
 
   useEffect(() => {
     if (pathname === "/login") {
@@ -46,6 +51,53 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="min-h-screen bg-paper text-ink">
+      {mobileMenuOpen ? (
+        <div className="fixed inset-0 z-40 lg:hidden" role="dialog" aria-modal="true" aria-label="모바일 메뉴">
+          <button
+            type="button"
+            aria-label="메뉴 닫기"
+            className="absolute inset-0 bg-[#092235]/50"
+            onClick={() => setMobileMenuOpen(false)}
+          />
+          <aside className="relative z-10 flex h-full w-[min(84vw,20rem)] flex-col bg-[#092235] px-5 py-6 shadow-2xl">
+            <div className="flex items-start justify-between gap-3">
+              <Link href="/" className="block" onClick={() => setMobileMenuOpen(false)}>
+                <p className="text-sm font-semibold text-[#7dd3fc]">KUDALABS</p>
+                <h1 className="mt-1 text-2xl font-bold text-white">사내 운영 ERP</h1>
+              </Link>
+              <button
+                type="button"
+                className="flex h-10 w-10 items-center justify-center rounded-md border border-[#2c5870] text-[#b8cfdd]"
+                aria-label="메뉴 닫기"
+                onClick={() => setMobileMenuOpen(false)}
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <nav className="mt-8 space-y-1 overflow-y-auto pb-6">
+              {navigationModules.map((module) => {
+                const active = pathname === module.href || pathname.startsWith(`${module.href}/`);
+
+                return (
+                  <Link
+                    key={module.href}
+                    href={module.href}
+                    onClick={() => setMobileMenuOpen(false)}
+                    className={[
+                      "flex items-center gap-3 rounded-md px-3 py-3 text-sm font-medium transition",
+                      active ? "bg-[#123b57] text-white" : "text-[#b8cfdd] hover:bg-[#123b57] hover:text-white"
+                    ].join(" ")}
+                  >
+                    <module.icon className={["h-4 w-4", active ? "text-[#7dd3fc]" : ""].join(" ")} />
+                    {module.title}
+                  </Link>
+                );
+              })}
+            </nav>
+          </aside>
+        </div>
+      ) : null}
+
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 border-r border-[#0f3f5e] bg-[#092235] px-5 py-6 lg:block">
         <Link href="/" className="block">
           <p className="text-sm font-semibold text-[#7dd3fc]">KUDALABS</p>
@@ -81,6 +133,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <div className="flex items-center gap-3">
               <button
                 type="button"
+                onClick={() => setMobileMenuOpen(true)}
+                aria-expanded={mobileMenuOpen}
                 className="flex h-10 w-10 items-center justify-center rounded-md border border-line text-steel lg:hidden"
                 aria-label="메뉴"
               >

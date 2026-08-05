@@ -1,8 +1,94 @@
 import { Camera, CheckCircle2, CreditCard, FilePlus2, ReceiptText } from "lucide-react";
 import { FilterableExpensesTable } from "@/components/filterable-expenses-table";
-import { expenseCategories, expenses, expenseStats, paymentMethods, receiptQueue } from "@/lib/expenses-data";
+import { ReceiptOcrForm } from "@/components/receipt-ocr-form";
+import { prisma } from "@/lib/prisma";
 
-export default function ExpensesPage() {
+export const dynamic = "force-dynamic";
+
+const approvalLabels = {
+  DRAFT: "검토",
+  REQUESTED: "승인 대기",
+  APPROVED: "승인 완료",
+  REJECTED: "반려",
+  PAID: "지급 완료"
+} as const;
+
+function formatMoney(value: bigint | number) {
+  return `${Number(value).toLocaleString("ko-KR")}원`;
+}
+
+function parseMerchantName(value: string | null) {
+  if (!value) {
+    return "";
+  }
+
+  try {
+    const data = JSON.parse(value) as { merchantName?: unknown };
+    return typeof data.merchantName === "string" ? data.merchantName.trim() : "";
+  } catch {
+    return "";
+  }
+}
+
+export default async function ExpensesPage() {
+  const records = await prisma.expense.findMany({
+    include: { client: true },
+    orderBy: { spentAt: "desc" },
+    take: 200
+  });
+  const expenseRows = records.map((expense) => {
+    const merchantName = parseMerchantName(expense.geminiAnalysis);
+    const vendor = merchantName || expense.client?.name || "거래처 미지정";
+
+    return {
+      id: expense.id.slice(0, 8),
+      vendor,
+      category: expense.expenseCategory,
+      title: merchantName || expense.expenseCategory,
+      amount: formatMoney(expense.totalAmount),
+      method: expense.paymentMethod,
+      spentAt: expense.spentAt.toLocaleDateString("ko-KR"),
+      approval: approvalLabels[expense.approvalStatus],
+      receipt: expense.receiptImageUrl ? "영수증 첨부" : "증빙 없음"
+    };
+  });
+
+  const now = new Date();
+  const thisMonth = records.filter((expense) => (
+    expense.spentAt.getFullYear() === now.getFullYear() && expense.spentAt.getMonth() === now.getMonth()
+  ));
+  const monthTotal = thisMonth.reduce((sum, expense) => sum + Number(expense.totalAmount), 0);
+  const pendingCount = records.filter((expense) => expense.approvalStatus === "REQUESTED").length;
+  const receiptCount = records.filter((expense) => Boolean(expense.receiptImageUrl)).length;
+  const categoryTotals = new Map<string, number>();
+  const paymentTotals = new Map<string, number>();
+
+  for (const expense of records) {
+    categoryTotals.set(expense.expenseCategory, (categoryTotals.get(expense.expenseCategory) ?? 0) + Number(expense.totalAmount));
+    paymentTotals.set(expense.paymentMethod, (paymentTotals.get(expense.paymentMethod) ?? 0) + 1);
+  }
+
+  const largestCategory = Math.max(...categoryTotals.values(), 0);
+  const expenseCategories = [...categoryTotals.entries()].slice(0, 5).map(([label, total]) => ({
+    label,
+    value: largestCategory ? Math.max(5, Math.round((total / largestCategory) * 100)) : 0,
+    amount: formatMoney(total)
+  }));
+  const paymentMethods = [...paymentTotals.entries()].map(([label, count]) => ({ label, value: `${count}건` }));
+  const receiptQueue = records.filter((expense) => expense.receiptImageUrl).slice(0, 5).map((expense) => ({
+    file: expense.receiptImageUrl?.split("/").pop() ?? "receipt",
+    vendor: parseMerchantName(expense.geminiAnalysis) || expense.client?.name || "거래처 미지정",
+    amount: formatMoney(expense.totalAmount),
+    status: approvalLabels[expense.approvalStatus]
+  }));
+
+  const expenseStats = [
+    { label: "이번 달 지출", value: formatMoney(monthTotal), count: `${thisMonth.length}건` },
+    { label: "OCR 검수", value: `${receiptCount}건`, count: "영수증" },
+    { label: "승인 대기", value: `${pendingCount}건`, count: "결재 필요" },
+    { label: "전체 지출", value: `${records.length}건`, count: "운영 데이터" }
+  ];
+
   return (
     <main className="px-5 py-6 sm:px-8">
       <section className="mb-6 flex flex-col gap-4 border-b border-line pb-5 lg:flex-row lg:items-end lg:justify-between">
@@ -10,16 +96,20 @@ export default function ExpensesPage() {
           <h2 className="text-3xl font-bold text-ink">지출 및 매입</h2>
         </div>
         <div className="flex flex-wrap gap-2">
-          <button className="inline-flex items-center gap-2 rounded-md border border-line bg-white px-3 py-2 text-sm font-medium text-ink">
+          <a href="#receipt-ocr" className="inline-flex items-center gap-2 rounded-md border border-line bg-white px-3 py-2 text-sm font-medium text-ink">
             <Camera className="h-4 w-4 text-marine" />
             영수증 스캔
-          </button>
-          <button className="inline-flex items-center gap-2 rounded-md bg-marine px-3 py-2 text-sm font-medium text-white">
+          </a>
+          <a href="#receipt-ocr" className="inline-flex items-center gap-2 rounded-md bg-marine px-3 py-2 text-sm font-medium text-white">
             <FilePlus2 className="h-4 w-4" />
             지출 등록
-          </button>
+          </a>
         </div>
       </section>
+
+      <div id="receipt-ocr" className="mb-6">
+        <ReceiptOcrForm />
+      </div>
 
       <section className="mb-6 grid gap-4 md:grid-cols-4">
         {expenseStats.map((stat) => (
@@ -32,7 +122,7 @@ export default function ExpensesPage() {
       </section>
 
       <section className="mb-6 grid gap-4 xl:grid-cols-[1fr_360px]">
-        <FilterableExpensesTable expenses={expenses} statusOptions={["전체", "승인 대기", "검토", "승인 완료", "지급 완료"]} />
+        <FilterableExpensesTable expenses={expenseRows} statusOptions={["전체", "승인 대기", "검토", "승인 완료", "지급 완료"]} />
 
         <aside className="space-y-4">
           <section className="rounded-md border border-line bg-white p-5">
@@ -41,7 +131,7 @@ export default function ExpensesPage() {
               <h3 className="font-bold text-ink">영수증 OCR</h3>
             </div>
             <div className="space-y-3">
-              {receiptQueue.map((item) => (
+              {receiptQueue.length ? receiptQueue.map((item) => (
                 <div key={item.file} className="rounded-md bg-paper px-3 py-3">
                   <div className="flex items-center justify-between gap-3">
                     <p className="truncate text-sm font-medium text-ink">{item.vendor}</p>
@@ -52,7 +142,7 @@ export default function ExpensesPage() {
                     <span>{item.status}</span>
                   </div>
                 </div>
-              ))}
+              )) : <p className="rounded-md bg-paper px-3 py-4 text-sm font-medium text-steel">스캔된 영수증이 없습니다.</p>}
             </div>
           </section>
 
@@ -62,12 +152,12 @@ export default function ExpensesPage() {
               <h3 className="font-bold text-ink">결제수단</h3>
             </div>
             <div className="space-y-3">
-              {paymentMethods.map((item) => (
+              {paymentMethods.length ? paymentMethods.map((item) => (
                 <div key={item.label} className="flex items-center justify-between rounded-md bg-paper px-3 py-3">
                   <p className="text-sm font-medium text-ink">{item.label}</p>
                   <p className="text-sm font-bold text-marine">{item.value}</p>
                 </div>
-              ))}
+              )) : <p className="rounded-md bg-paper px-3 py-4 text-sm font-medium text-steel">등록된 결제수단이 없습니다.</p>}
             </div>
           </section>
         </aside>
@@ -77,7 +167,7 @@ export default function ExpensesPage() {
         <div className="rounded-md border border-line bg-white p-5">
           <h3 className="mb-5 font-bold text-ink">지출 구성</h3>
           <div className="space-y-4">
-            {expenseCategories.map((item) => (
+            {expenseCategories.length ? expenseCategories.map((item) => (
               <div key={item.label}>
                 <div className="mb-2 flex items-center justify-between text-sm">
                   <span className="font-medium text-ink">{item.label}</span>
@@ -87,7 +177,7 @@ export default function ExpensesPage() {
                   <div className="h-3 rounded-full bg-marine" style={{ width: `${item.value}%` }} />
                 </div>
               </div>
-            ))}
+            )) : <p className="rounded-md bg-paper px-3 py-4 text-sm font-medium text-steel">등록된 지출이 없습니다.</p>}
           </div>
         </div>
 
@@ -99,7 +189,7 @@ export default function ExpensesPage() {
           <div className="space-y-3">
             <div className="rounded-md bg-paper px-3 py-3">
               <p className="text-sm text-steel">승인 대기</p>
-              <p className="mt-1 text-xl font-bold text-ink">0건</p>
+              <p className="mt-1 text-xl font-bold text-ink">{pendingCount}건</p>
             </div>
             <div className="rounded-md bg-paper px-3 py-3">
               <p className="text-sm text-steel">반려 없음</p>
