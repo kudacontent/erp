@@ -1,19 +1,71 @@
-import { Bot, CalendarPlus, CheckSquare, FileText, MessageSquareText, Users } from "lucide-react";
+import { Bot, CalendarPlus, CheckSquare, MessageSquareText, Users } from "lucide-react";
 import { FilterableMeetingsTable } from "@/components/filterable-meetings-table";
-import { meetingActions, meetings, meetingStats, meetingSummaries, meetingTimeline } from "@/lib/meetings-data";
+import { MeetingRecorder } from "@/components/meeting-recorder";
+import { prisma } from "@/lib/prisma";
 
-export default function MeetingsPage() {
+export const dynamic = "force-dynamic";
+
+const statusLabels = {
+  SCHEDULED: "예정",
+  DONE: "완료",
+  MINUTES_DRAFT: "진행 중",
+  FOLLOW_UP: "후속 조치",
+  COMPLETED: "완료"
+} as const;
+
+export default async function MeetingsPage() {
+  const records = await prisma.meeting.findMany({
+    include: { client: true, _count: { select: { attendees: true } } },
+    orderBy: { startedAt: "desc" },
+    take: 200
+  });
+  const meetings = records.map((meeting) => ({
+    id: meeting.id.slice(0, 8),
+    title: meeting.title,
+    type: meeting.meetingType,
+    client: meeting.client?.name || "내부 회의",
+    time: meeting.startedAt.toLocaleString("ko-KR"),
+    attendees: `${meeting._count.attendees}명`,
+    status: statusLabels[meeting.status],
+    minutes: meeting.minutes ? "회의록 있음" : "회의록 없음"
+  }));
+  const now = new Date();
+  const startOfWeek = new Date(now);
+  startOfWeek.setDate(now.getDate() - ((now.getDay() + 6) % 7));
+  startOfWeek.setHours(0, 0, 0, 0);
+  const thisWeek = records.filter((meeting) => meeting.startedAt >= startOfWeek);
+  const today = records.filter((meeting) => meeting.startedAt.toDateString() === now.toDateString());
+  const meetingStats = [
+    { label: "이번 주 회의", value: `${thisWeek.length}건`, hint: `거래처 ${thisWeek.filter((meeting) => meeting.clientId).length} / 내부 ${thisWeek.filter((meeting) => !meeting.clientId).length}` },
+    { label: "회의록 작성", value: `${records.filter((meeting) => Boolean(meeting.minutes)).length}건`, hint: "전사 포함" },
+    { label: "후속 조치", value: "0건", hint: "등록된 액션 기준" },
+    { label: "오늘 회의", value: `${today.length}건`, hint: `예정 ${today.filter((meeting) => meeting.status === "SCHEDULED").length} / 완료 ${today.filter((meeting) => meeting.status !== "SCHEDULED").length}` }
+  ];
+  const meetingTimeline = today.slice(0, 5).map((meeting) => ({
+    time: meeting.startedAt.toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" }),
+    title: meeting.title,
+    room: meeting.location || "장소 미정"
+  }));
+  const meetingSummaries = records.filter((meeting) => meeting.minutes).slice(0, 3).map((meeting) => ({
+    label: meeting.title,
+    value: (meeting.minutes ?? "").slice(0, 180)
+  }));
+
   return (
     <main className="px-5 py-6 sm:px-8">
       <section className="mb-6 flex flex-col gap-4 border-b border-line pb-5 lg:flex-row lg:items-end lg:justify-between">
         <div>
           <h2 className="text-3xl font-bold text-ink">회의 관리</h2>
         </div>
-        <button className="inline-flex items-center gap-2 rounded-md bg-marine px-3 py-2 text-sm font-medium text-white">
+        <a href="#meeting-recorder" className="inline-flex items-center gap-2 rounded-md bg-marine px-3 py-2 text-sm font-medium text-white">
           <CalendarPlus className="h-4 w-4" />
           회의 등록
-        </button>
+        </a>
       </section>
+
+      <div id="meeting-recorder">
+        <MeetingRecorder />
+      </div>
 
       <section className="mb-6 grid gap-4 md:grid-cols-4">
         {meetingStats.map((stat) => (
@@ -35,7 +87,7 @@ export default function MeetingsPage() {
               <h3 className="font-bold text-ink">오늘 회의</h3>
             </div>
             <div className="space-y-4">
-              {meetingTimeline.map((item) => (
+              {meetingTimeline.length ? meetingTimeline.map((item) => (
                 <div key={`${item.time}-${item.title}`} className="flex gap-3">
                   <div className="w-12 shrink-0 text-sm font-bold text-marine">{item.time}</div>
                   <div className="min-w-0 border-l border-line pl-3">
@@ -43,7 +95,7 @@ export default function MeetingsPage() {
                     <p className="mt-1 text-xs text-steel">{item.room}</p>
                   </div>
                 </div>
-              ))}
+              )) : <p className="rounded-md bg-paper px-3 py-4 text-sm font-medium text-steel">오늘 등록된 회의가 없습니다.</p>}
             </div>
           </section>
 
@@ -52,17 +104,7 @@ export default function MeetingsPage() {
               <CheckSquare className="h-5 w-5 text-marine" />
               <h3 className="font-bold text-ink">후속 조치</h3>
             </div>
-            <div className="space-y-3">
-              {meetingActions.map((item) => (
-                <div key={item.title} className="rounded-md bg-paper px-3 py-3">
-                  <p className="text-sm font-medium text-ink">{item.title}</p>
-                  <div className="mt-2 flex items-center justify-between text-xs text-steel">
-                    <span>{item.owner}</span>
-                    <span>{item.due}</span>
-                  </div>
-                </div>
-              ))}
-            </div>
+            <p className="rounded-md bg-paper px-3 py-4 text-sm font-medium text-steel">등록된 후속 조치가 없습니다.</p>
           </section>
         </aside>
       </section>
@@ -74,12 +116,12 @@ export default function MeetingsPage() {
             <h3 className="font-bold text-ink">회의록 요약</h3>
           </div>
           <div className="grid gap-3 md:grid-cols-3">
-            {meetingSummaries.map((summary) => (
+            {meetingSummaries.length ? meetingSummaries.map((summary) => (
               <div key={summary.label} className="rounded-md bg-paper p-4">
                 <p className="text-sm font-bold text-marine">{summary.label}</p>
                 <p className="mt-3 text-sm leading-6 text-ink">{summary.value}</p>
               </div>
-            ))}
+            )) : <p className="rounded-md bg-paper px-3 py-4 text-sm font-medium text-steel">전사된 회의록이 없습니다.</p>}
           </div>
         </div>
 
@@ -91,7 +133,7 @@ export default function MeetingsPage() {
           <div className="space-y-3">
             <div className="rounded-md bg-paper px-3 py-3">
               <p className="text-sm text-steel">내부 참석</p>
-              <p className="mt-1 text-xl font-bold text-ink">0명</p>
+              <p className="mt-1 text-xl font-bold text-ink">{records.reduce((sum, meeting) => sum + meeting._count.attendees, 0)}명</p>
             </div>
             <div className="rounded-md bg-paper px-3 py-3">
               <p className="text-sm text-steel">외부 참석</p>
@@ -99,7 +141,7 @@ export default function MeetingsPage() {
             </div>
             <div className="rounded-md bg-paper px-3 py-3">
               <p className="text-sm text-steel">회의록 첨부</p>
-              <p className="mt-1 text-xl font-bold text-marine">0건</p>
+              <p className="mt-1 text-xl font-bold text-marine">{records.filter((meeting) => Boolean(meeting.minutes)).length}건</p>
             </div>
           </div>
         </div>

@@ -68,4 +68,38 @@ export const PATCH = withAuth(async (request, { params }, currentUser) => {
 
     throw error;
   }
-}, { roles: ["CEO", "ADMIN"], write: true });
+}, { roles: ["CEO"], write: true });
+
+export const DELETE = withAuth(async (_request, { params }, currentUser) => {
+  const { id } = await params;
+
+  if (id === currentUser.id) {
+    return NextResponse.json({ ok: false, message: "현재 로그인한 계정은 삭제할 수 없습니다." }, { status: 400 });
+  }
+
+  const target = await prisma.user.findUnique({ where: { id } });
+
+  if (!target) {
+    return NextResponse.json({ ok: false, message: "사용자를 찾을 수 없습니다." }, { status: 404 });
+  }
+
+  if (target.status === "ARCHIVED") {
+    return NextResponse.json({ ok: true, message: "이미 보관된 계정입니다." });
+  }
+
+  if (target.role === "CEO") {
+    const activeCeoCount = await prisma.user.count({ where: { role: "CEO", status: "ACTIVE" } });
+
+    if (activeCeoCount <= 1) {
+      return NextResponse.json({ ok: false, message: "활성 CEO 계정은 최소 1개가 필요합니다." }, { status: 400 });
+    }
+  }
+
+  const user = await prisma.user.update({
+    where: { id },
+    data: { status: "ARCHIVED", passwordHash: null },
+    select: userSelect
+  });
+
+  return NextResponse.json({ ok: true, user, message: "계정을 보관 처리했습니다." });
+}, { roles: ["CEO"], write: true });

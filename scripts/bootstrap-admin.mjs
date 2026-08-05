@@ -19,6 +19,8 @@ async function hashPassword(password) {
 const email = process.env.ADMIN_EMAIL?.trim().toLowerCase();
 const password = process.env.ADMIN_PASSWORD;
 const name = process.env.ADMIN_NAME?.trim() || "시스템 관리자";
+const configuredRole = process.env.ADMIN_ROLE?.trim().toUpperCase();
+const role = configuredRole === "CEO" ? "CEO" : "ADMIN";
 const resetExistingPassword = process.env.RESET_ADMIN_PASSWORD === "YES";
 
 if (!email || !password) {
@@ -33,23 +35,23 @@ try {
       where: { id: existing.id },
       data: {
         name,
-        role: "ADMIN",
+        role,
         status: "ACTIVE",
         passwordHash: resetExistingPassword ? await hashPassword(password) : existing.passwordHash
       }
     });
-    console.log(`Administrator is ready: ${email}`);
+    console.log(`${role} account is ready: ${email}`);
   } else {
     await prisma.user.create({
       data: {
         email,
         name,
-        role: "ADMIN",
+        role,
         status: "ACTIVE",
         passwordHash: await hashPassword(password)
       }
     });
-    console.log(`Administrator created: ${email}`);
+    console.log(`${role} account created: ${email}`);
   }
 } finally {
   await prisma.$disconnect();

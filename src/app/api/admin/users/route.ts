@@ -65,4 +65,4 @@ export const POST = withAuth(async (request, _context, currentUser) => {
   });
 
   return NextResponse.json({ ok: true, user }, { status: 201 });
-}, { roles: ["CEO", "ADMIN"], write: true });
+}, { roles: ["CEO"], write: true });

@@ -86,8 +86,8 @@ export function FilterableClientsTable({
         검색 결과 {filteredClients.length}건
       </div>
 
-      <div className="overflow-hidden rounded-md border border-line">
-        <table className="w-full border-collapse text-left text-sm">
+      <div className="overflow-x-auto rounded-md border border-line">
+        <table className="min-w-[720px] w-full border-collapse text-left text-sm">
           <thead className="bg-paper text-steel">
             <tr>
               <th className="px-4 py-3 font-medium">거래처</th>
