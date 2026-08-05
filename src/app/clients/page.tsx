@@ -40,16 +40,16 @@ export default async function ClientsPage() {
         ))}
       </section>
 
-      <section className="mb-6 grid gap-4 xl:grid-cols-[1fr_360px]">
+      <section className="mb-6 grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
         <FilterableClientsTable clients={clients} clientTypes={clientTypes} />
 
-        <aside className="space-y-4">
-          <section className="rounded-md border border-line bg-white p-5">
+        <aside className="min-w-0 space-y-4">
+          <section className="min-w-0 rounded-md border border-line bg-white p-5">
             <div className="mb-4 flex items-center justify-between">
               <h3 className="font-bold text-ink">명함 OCR</h3>
               <Upload className="h-5 w-5 text-marine" />
             </div>
-            <div className="rounded-md border border-dashed border-line bg-paper px-4 py-8 text-center">
+            <div className="min-w-0 rounded-md border border-dashed border-line bg-paper px-4 py-8 text-center">
               <Camera className="mx-auto h-8 w-8 text-marine" />
               <p className="mt-3 text-sm font-medium text-ink">명함 이미지 업로드</p>
               <p className="mt-1 text-xs text-steel">JPG, PNG, HEIC</p>
