@@ -50,6 +50,18 @@ export const PATCH = withAuth(async (request, { params }, currentUser) => {
     return NextResponse.json({ ok: false, message: "현재 로그인한 계정의 역할은 직접 변경할 수 없습니다." }, { status: 400 });
   }
 
+  const removesActiveCeo =
+    target.role === "CEO" &&
+    target.status === "ACTIVE" &&
+    ((parsed.data.role && parsed.data.role !== "CEO") || (parsed.data.status && parsed.data.status !== "ACTIVE"));
+
+  if (removesActiveCeo) {
+    const activeCeoCount = await prisma.user.count({ where: { role: "CEO", status: "ACTIVE" } });
+    if (activeCeoCount <= 1) {
+      return NextResponse.json({ ok: false, message: "활성 CEO 계정은 최소 1개가 필요합니다. 먼저 다른 CEO 계정을 활성화하세요." }, { status: 400 });
+    }
+  }
+
   const data = {
     ...(parsed.data.name ? { name: parsed.data.name } : {}),
     ...(parsed.data.email ? { email: parsed.data.email.toLowerCase() } : {}),
@@ -70,8 +82,9 @@ export const PATCH = withAuth(async (request, { params }, currentUser) => {
   }
 }, { roles: ["CEO"], write: true });
 
-export const DELETE = withAuth(async (_request, { params }, currentUser) => {
+export const DELETE = withAuth(async (request, { params }, currentUser) => {
   const { id } = await params;
+  const permanent = new URL(request.url).searchParams.get("permanent") === "true";
 
   if (id === currentUser.id) {
     return NextResponse.json({ ok: false, message: "현재 로그인한 계정은 삭제할 수 없습니다." }, { status: 400 });
@@ -83,15 +96,28 @@ export const DELETE = withAuth(async (_request, { params }, currentUser) => {
     return NextResponse.json({ ok: false, message: "사용자를 찾을 수 없습니다." }, { status: 404 });
   }
 
-  if (target.status === "ARCHIVED") {
+  if (!permanent && target.status === "ARCHIVED") {
     return NextResponse.json({ ok: true, message: "이미 보관된 계정입니다." });
   }
 
-  if (target.role === "CEO") {
+  if (target.role === "CEO" && target.status === "ACTIVE") {
     const activeCeoCount = await prisma.user.count({ where: { role: "CEO", status: "ACTIVE" } });
 
     if (activeCeoCount <= 1) {
-      return NextResponse.json({ ok: false, message: "활성 CEO 계정은 최소 1개가 필요합니다." }, { status: 400 });
+      return NextResponse.json({ ok: false, message: "활성 CEO 계정은 최소 1개가 필요합니다. 먼저 다른 CEO 계정을 활성화하세요." }, { status: 400 });
+    }
+  }
+
+  if (permanent) {
+    try {
+      await prisma.user.delete({ where: { id } });
+      return NextResponse.json({ ok: true, deleted: true, message: "계정을 영구 삭제했습니다." });
+    } catch (error) {
+      if (error && typeof error === "object" && "code" in error && error.code === "P2003") {
+        return NextResponse.json({ ok: false, message: "연결된 업무 기록 때문에 영구 삭제할 수 없습니다. 먼저 보관 처리를 사용하세요." }, { status: 409 });
+      }
+
+      throw error;
     }
   }
 
