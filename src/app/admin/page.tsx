@@ -18,7 +18,7 @@ export default async function AdminPage() {
         <h2 className="mt-2 text-3xl font-bold text-ink">관리자</h2>
         <p className="mt-2 text-sm text-steel">직원 계정, 역할과 접근 상태를 관리합니다.</p>
       </section>
-      <AdminUsersPanel currentUserRole={user.role} />
+      <AdminUsersPanel currentUserRole={user.role} currentUserId={user.id} />
     </main>
   );
 }
