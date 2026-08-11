@@ -41,6 +41,7 @@ export default async function ExpensesPage() {
     const vendor = merchantName || expense.client?.name || "거래처 미지정";
 
     return {
+      expenseId: expense.id,
       id: expense.id.slice(0, 8),
       vendor,
       category: expense.expenseCategory,
@@ -59,6 +60,10 @@ export default async function ExpensesPage() {
   ));
   const monthTotal = thisMonth.reduce((sum, expense) => sum + Number(expense.totalAmount), 0);
   const pendingCount = records.filter((expense) => expense.approvalStatus === "REQUESTED").length;
+  const rejectedCount = records.filter((expense) => expense.approvalStatus === "REJECTED").length;
+  const pendingPaymentTotal = records
+    .filter((expense) => expense.approvalStatus === "APPROVED")
+    .reduce((sum, expense) => sum + Number(expense.totalAmount), 0);
   const receiptCount = records.filter((expense) => Boolean(expense.receiptImageUrl)).length;
   const categoryTotals = new Map<string, number>();
   const paymentTotals = new Map<string, number>();
@@ -160,12 +165,12 @@ export default async function ExpensesPage() {
               <p className="mt-1 text-xl font-bold text-ink">{pendingCount}건</p>
             </div>
             <div className="rounded-md bg-paper px-3 py-3">
-              <p className="text-sm text-steel">반려 없음</p>
-              <p className="mt-1 text-xl font-bold text-ink">0건</p>
+              <p className="text-sm text-steel">반려</p>
+              <p className="mt-1 text-xl font-bold text-ink">{rejectedCount}건</p>
             </div>
             <div className="rounded-md bg-paper px-3 py-3">
               <p className="text-sm text-steel">지급 예정</p>
-              <p className="mt-1 text-xl font-bold text-marine">0원</p>
+              <p className="mt-1 text-xl font-bold text-marine">{formatMoney(pendingPaymentTotal)}</p>
             </div>
           </div>
         </div>
