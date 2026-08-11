@@ -30,7 +30,7 @@ export default async function TaxInvoicesPage({ searchParams }: { searchParams: 
             <ReceiptText className="h-7 w-7 text-marine" />
             <h2 className="text-3xl font-bold text-ink">세금계산서 발행</h2>
           </div>
-          <p className="mt-2 text-sm text-steel">견적·계약 금액을 기준으로 세금계산서 발행 요청을 준비합니다.</p>
+          <p className="mt-2 text-sm text-steel">홈택스 건별 발급 흐름에 맞춰 공급자·공급받는자·품목을 입력하고 바로빌로 발급 요청합니다.</p>
         </div>
       </section>
       <TaxInvoiceWorkspace
