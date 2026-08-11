@@ -1,4 +1,4 @@
-# 쿠다랩스 사내 운영 ERP
+# erp
 
 NAS Docker 운영을 전제로 한 쿠다랩스 내부 ERP 프로젝트입니다. 운영 배포는
 `docker-compose.yml`을 사용하며, Vercel 배포 설정은 사용하지 않습니다.
