@@ -81,45 +81,54 @@ enum ActionStatus {
   BLOCKED
 }
 
+enum TaxInvoiceStatus {
+  DRAFT
+  ISSUING
+  ISSUED
+  FAILED
+  CANCELED
+}
+
 model User {
-  id           String       @id @default(uuid())
-  email        String       @unique
-  name         String
-  passwordHash String?      @map("password_hash")
-  role         UserRole     @default(EMPLOYEE)
-  status       RecordStatus @default(ACTIVE)
-  employeeId   String?
-  employee     Employee?    @relation(fields: [employeeId], references: [id])
-  expenses     Expense[]    @relation("ExpenseCreatedBy")
-  approvals    Expense[]    @relation("ExpenseApprovedBy")
-  meetings     Meeting[]
-  actionItems  ActionItem[]
-  auditLogs    AuditLog[]
+  id            String         @id @default(uuid())
+  email         String         @unique
+  name          String
+  passwordHash  String?        @map("password_hash")
+  role          UserRole       @default(EMPLOYEE)
+  status        RecordStatus   @default(ACTIVE)
+  employeeId    String?
+  employee      Employee?      @relation(fields: [employeeId], references: [id])
+  expenses      Expense[]      @relation("ExpenseCreatedBy")
+  approvals     Expense[]      @relation("ExpenseApprovedBy")
+  meetings      Meeting[]
+  actionItems   ActionItem[]
+  auditLogs     AuditLog[]
   notifications Notification[]
-  createdAt    DateTime     @default(now())
-  updatedAt    DateTime     @updatedAt
+  taxInvoices   TaxInvoice[]   @relation("TaxInvoiceCreatedBy")
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
 }
 
 model Employee {
-  id          String       @id @default(uuid())
-  name        String
-  role        String
-  department  String?
-  baseSalary  BigInt?
-  joinedAt    DateTime
-  resignedAt  DateTime?
-  status      RecordStatus @default(ACTIVE)
-  phone       String?
-  email       String?
-  users       User[]
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
+  id         String       @id @default(uuid())
+  name       String
+  role       String
+  department String?
+  baseSalary BigInt?
+  joinedAt   DateTime
+  resignedAt DateTime?
+  status     RecordStatus @default(ACTIVE)
+  phone      String?
+  email      String?
+  users      User[]
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
 }
 
 model Client {
-  id             String           @id @default(uuid())
+  id             String            @id @default(uuid())
   name           String
-  clientType     ClientType       @default(OTHER)
+  clientType     ClientType        @default(OTHER)
   businessNumber String?
   ceoName        String?
   phone          String?
@@ -131,16 +140,17 @@ model Client {
   contacts       ClientContact[]
   contracts      ProjectContract[]
   expenses       Expense[]
+  taxInvoices    TaxInvoice[]
   meetings       Meeting[]
   calendarEvents CalendarEvent[]
-  createdAt      DateTime         @default(now())
-  updatedAt      DateTime         @updatedAt
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
 }
 
 model ClientContact {
-  id                   String   @id @default(uuid())
+  id                   String            @id @default(uuid())
   clientId             String
-  client               Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  client               Client            @relation(fields: [clientId], references: [id], onDelete: Cascade)
   name                 String
   position             String?
   department           String?
@@ -152,50 +162,134 @@ model ClientContact {
   ocrConfidence        Decimal?
   memo                 String?
   meetingAttendees     MeetingAttendee[]
-  createdAt            DateTime @default(now())
-  updatedAt            DateTime @updatedAt
+  createdAt            DateTime          @default(now())
+  updatedAt            DateTime          @updatedAt
 }
 
 model ProjectContract {
-  id             String           @id @default(uuid())
+  id             String          @id @default(uuid())
   clientId       String
-  client         Client           @relation(fields: [clientId], references: [id])
+  client         Client          @relation(fields: [clientId], references: [id])
   projectTitle   String
   contractAmount BigInt
   vatAmount      BigInt
   totalAmount    BigInt
-  billingStatus  BillingStatus    @default(PENDING)
-  paymentStatus  PaymentStatus    @default(UNPAID)
-  contractStatus ContractStatus   @default(DRAFT)
+  billingStatus  BillingStatus   @default(PENDING)
+  paymentStatus  PaymentStatus   @default(UNPAID)
+  contractStatus ContractStatus  @default(DRAFT)
   contractedAt   DateTime?
   dueDate        DateTime?
   closedAt       DateTime?
   memo           String?
+  taxInvoices    TaxInvoice[]
   meetings       Meeting[]
   calendarEvents CalendarEvent[]
-  createdAt      DateTime         @default(now())
-  updatedAt      DateTime         @updatedAt
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
 }
 
 model Expense {
-  id               String         @id @default(uuid())
-  clientId          String?
-  client            Client?        @relation(fields: [clientId], references: [id])
-  expenseCategory   String
-  amount            BigInt
-  vatAmount         BigInt         @default(0)
-  totalAmount       BigInt
-  paymentMethod     String
-  approvalStatus    ApprovalStatus @default(DRAFT)
-  receiptImageUrl   String?
-  geminiAnalysis    String?
-  spentAt           DateTime
-  createdById       String?
-  createdBy         User?          @relation("ExpenseCreatedBy", fields: [createdById], references: [id])
-  approvedById      String?
-  approvedBy        User?          @relation("ExpenseApprovedBy", fields: [approvedById], references: [id])
-  createdAt         DateTime       @default(now())
-  updatedAt         DateTime       @updatedAt
+  id              String         @id @default(uuid())
+  clientId        String?
+  client          Client?        @relation(fields: [clientId], references: [id])
+  expenseCategory String
+  amount          BigInt
+  vatAmount       BigInt         @default(0)
+  totalAmount     BigInt
+  paymentMethod   String
+  approvalStatus  ApprovalStatus @default(DRAFT)
+  receiptImageUrl String?
+  geminiAnalysis  String?
+  spentAt         DateTime
+  createdById     String?
+  createdBy       User?          @relation("ExpenseCreatedBy", fields: [createdById], references: [id])
+  approvedById    String?
+  approvedBy      User?          @relation("ExpenseApprovedBy", fields: [approvedById], references: [id])
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+}
+
+model TaxInvoice {
+  id                  String           @id @default(uuid())
+  clientId            String?
+  client              Client?          @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  contractId          String?
+  contract            ProjectContract? @relation(fields: [contractId], references: [id], onDelete: SetNull)
+  createdById         String?
+  createdBy           User?            @relation("TaxInvoiceCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  mgtKey              String           @unique
+  issueDirection      Int              @default(1)
+  taxInvoiceType      Int              @default(1)
+  taxType             Int              @default(1)
+  taxCalcType         Int              @default(1)
+  purposeType         Int              @default(2)
+  writeDate           String
+  invoicerCorpNum     String
+  invoicerTaxRegId    String?
+  invoicerCorpName    String
+  invoicerCeoName     String
+  invoicerAddress     String
+  invoicerBizClass    String?
+  invoicerBizType     String?
+  invoicerContactId   String?
+  invoicerContactName String?
+  invoicerTel         String?
+  invoicerHp          String?
+  invoicerEmail       String?
+  invoiceeCorpNum     String
+  invoiceeTaxRegId    String?
+  invoiceeCorpName    String
+  invoiceeCeoName     String
+  invoiceeAddress     String
+  invoiceeBizClass    String?
+  invoiceeBizType     String?
+  invoiceeContactName String?
+  invoiceeTel         String?
+  invoiceeHp          String?
+  invoiceeEmail       String?
+  cash                String?
+  chkBill             String?
+  note                String?
+  credit              String?
+  remark1             String?
+  remark2             String?
+  remark3             String?
+  sendSms             Boolean          @default(false)
+  forceIssue          Boolean          @default(false)
+  mailTitle           String?
+  amountTotal         BigInt
+  taxTotal            BigInt
+  totalAmount         BigInt
+  provider            String           @default("mock")
+  providerResultCode  Int?
+  providerMessage     String?
+  providerStatus      Int?
+  invoiceKey          String?
+  approvalNumber      String?
+  issuedAt            DateTime?
+  payload             Json
+  status              TaxInvoiceStatus @default(DRAFT)
+  items               TaxInvoiceItem[]
+  createdAt           DateTime         @default(now())
+  updatedAt           DateTime         @updatedAt
+
+  @@index([status, writeDate])
+  @@index([clientId])
+}
+
+model TaxInvoiceItem {
+  id             String     @id @default(uuid())
+  taxInvoiceId   String
+  taxInvoice     TaxInvoice @relation(fields: [taxInvoiceId], references: [id], onDelete: Cascade)
+  purchaseDate   String
+  name           String
+  information    String?
+  chargeableUnit String
+  unitPrice      String
+  amount         BigInt
+  tax            BigInt
+  description    String?
+  sortOrder      Int        @default(0)
 }
 
 model Meeting {
@@ -250,21 +344,21 @@ model ActionItem {
 }
 
 model CalendarEvent {
-  id            String            @id @default(uuid())
-  googleEventId String?           @unique
+  id            String           @id @default(uuid())
+  googleEventId String?          @unique
   title         String
   category      String
   clientId      String?
-  client        Client?           @relation(fields: [clientId], references: [id])
+  client        Client?          @relation(fields: [clientId], references: [id])
   contractId    String?
-  contract      ProjectContract?  @relation(fields: [contractId], references: [id])
+  contract      ProjectContract? @relation(fields: [contractId], references: [id])
   meeting       Meeting?
   startTime     DateTime
   endTime       DateTime
   description   String?
-  syncStatus    String            @default("LOCAL_ONLY")
-  createdAt     DateTime          @default(now())
-  updatedAt     DateTime          @updatedAt
+  syncStatus    String           @default("LOCAL_ONLY")
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
 }
 
 model Attachment {

@@ -32,7 +32,7 @@ export const contractDocuments = [
     title: "견적서",
     description: "공급가액, 부가세, 작업 범위 기준으로 견적서를 생성합니다.",
     status: "작성 가능",
-    action: "견적서 생성",
+    action: "견적서 열기",
     href: "quote"
   },
   {
@@ -100,7 +100,7 @@ export function getContractNextActions(contract: ContractRecord) {
   }
 
   return [
-    { label: "견적서 확인", href: `/contracts/${contract.slug}/documents/quote`, tone: "primary" },
+    { label: "견적서 열기", href: "/documents/estimate", tone: "primary" },
     { label: "계약서 작성", href: `/contracts/${contract.slug}/documents/contract`, tone: "default" },
     { label: "지출결의서 작성", href: `/contracts/${contract.slug}/documents/expense-resolution`, tone: "default" }
   ];
@@ -109,7 +109,7 @@ export function getContractNextActions(contract: ContractRecord) {
 export const documentTemplates = {
   quote: {
     title: "견적서",
-    heading: "견적서 작성",
+    heading: "견적서",
     fields: ["견적명", "작업 범위", "공급가액", "부가세", "유효기간", "특이사항"]
   },
   contract: {

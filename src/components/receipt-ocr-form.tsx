@@ -1,8 +1,9 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Camera, Loader2, Save, Upload } from "lucide-react";
+import Link from "next/link";
+import { Camera, CheckCircle2, Loader2, Save, Send, Upload } from "lucide-react";
 
 type ReceiptResult = {
   merchantName: string;
@@ -19,6 +20,16 @@ type ReceiptResult = {
   receiptImageUrl: string;
   receiptFileName: string;
   receiptMimeType: string;
+};
+
+type ApprovalStatus = "DRAFT" | "REQUESTED" | "APPROVED" | "REJECTED" | "PAID";
+
+const approvalLabels: Record<ApprovalStatus, string> = {
+  DRAFT: "검토 완료",
+  REQUESTED: "승인 대기",
+  APPROVED: "승인 완료",
+  REJECTED: "반려",
+  PAID: "지급 완료"
 };
 
 const emptyResult: ReceiptResult = {
@@ -46,10 +57,18 @@ export function ReceiptOcrForm() {
   const router = useRouter();
   const [file, setFile] = useState<File | null>(null);
   const [result, setResult] = useState<ReceiptResult>(emptyResult);
-  const [status, setStatus] = useState<"idle" | "analyzing" | "done" | "saving" | "saved" | "error">("idle");
+  const [status, setStatus] = useState<"idle" | "analyzing" | "done" | "saving" | "saved" | "updating" | "error">("idle");
+  const [expenseId, setExpenseId] = useState("");
+  const [approvalStatus, setApprovalStatus] = useState<ApprovalStatus>("DRAFT");
   const [message, setMessage] = useState("");
 
   const previewUrl = useMemo(() => (file ? URL.createObjectURL(file) : null), [file]);
+
+  useEffect(() => () => {
+    if (previewUrl) {
+      URL.revokeObjectURL(previewUrl);
+    }
+  }, [previewUrl]);
 
   function updateResult<K extends keyof ReceiptResult>(key: K, value: ReceiptResult[K]) {
     setResult((current) => ({ ...current, [key]: value }));
@@ -127,12 +146,46 @@ export function ReceiptOcrForm() {
         return;
       }
 
+      setExpenseId(data.expense.id);
+      setApprovalStatus((data.expense.approvalStatus as ApprovalStatus) || "DRAFT");
       setStatus("saved");
-      setMessage("카드 영수증과 지출이 저장되었습니다.");
+      setMessage("검수 결과가 지출로 저장되었습니다. 승인 요청을 진행하세요.");
       router.refresh();
     } catch {
       setStatus("error");
       setMessage("네트워크 오류로 지출 저장에 실패했습니다.");
+    }
+  }
+
+  async function updateApproval(action: "request" | "approve" | "reject" | "pay") {
+    if (!expenseId) {
+      return;
+    }
+
+    setStatus("updating");
+    setMessage("");
+
+    try {
+      const response = await fetch(`/api/expenses/${expenseId}/approval`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action })
+      });
+      const data = await response.json();
+
+      if (!response.ok) {
+        setStatus("error");
+        setMessage(data.message ?? "지출 처리에 실패했습니다.");
+        return;
+      }
+
+      setApprovalStatus(data.expense.approvalStatus as ApprovalStatus);
+      setStatus("saved");
+      setMessage(data.message ?? "지출 처리 단계가 변경되었습니다.");
+      router.refresh();
+    } catch {
+      setStatus("error");
+      setMessage("네트워크 오류로 지출 처리에 실패했습니다.");
     }
   }
 
@@ -175,6 +228,9 @@ export function ReceiptOcrForm() {
               className="hidden"
               onChange={(event) => {
                 setFile(event.target.files?.[0] ?? null);
+                setResult(emptyResult);
+                setExpenseId("");
+                setApprovalStatus("DRAFT");
                 setStatus("idle");
                 setMessage("");
               }}
@@ -183,7 +239,7 @@ export function ReceiptOcrForm() {
           <button
             type="button"
             onClick={analyze}
-            disabled={!file || status === "analyzing" || status === "saving"}
+            disabled={!file || status === "analyzing" || status === "saving" || status === "updating"}
             className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-md bg-marine px-3 py-2.5 text-sm font-medium text-white disabled:opacity-60"
           >
             {status === "analyzing" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />}
@@ -244,6 +300,70 @@ export function ReceiptOcrForm() {
           </div>
         </div>
       </div>
+
+      {expenseId ? (
+        <div className="mt-5 rounded-md border border-[#b6ddea] bg-[#f3fbfe] p-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-start gap-3">
+              <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-marine" />
+              <div>
+                <p className="font-bold text-ink">지출 워크플로우</p>
+                <p className="mt-1 text-sm text-steel">현재 단계: {approvalLabels[approvalStatus]}</p>
+              </div>
+            </div>
+            <span className="rounded-md bg-white px-3 py-1.5 text-xs font-bold text-marine">영수증 검수 완료</span>
+          </div>
+
+          <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+            {approvalStatus === "DRAFT" || approvalStatus === "REJECTED" ? (
+              <button
+                type="button"
+                onClick={() => updateApproval("request")}
+                disabled={status === "updating"}
+                className="inline-flex items-center justify-center gap-2 rounded-md bg-marine px-3 py-2.5 text-sm font-medium text-white disabled:opacity-60"
+              >
+                <Send className="h-4 w-4" />
+                승인 요청
+              </button>
+            ) : null}
+            {approvalStatus === "REQUESTED" ? (
+              <>
+                <button
+                  type="button"
+                  onClick={() => updateApproval("approve")}
+                  disabled={status === "updating"}
+                  className="inline-flex items-center justify-center gap-2 rounded-md bg-marine px-3 py-2.5 text-sm font-medium text-white disabled:opacity-60"
+                >
+                  <CheckCircle2 className="h-4 w-4" />
+                  승인 처리
+                </button>
+                <button
+                  type="button"
+                  onClick={() => updateApproval("reject")}
+                  disabled={status === "updating"}
+                  className="rounded-md border border-line bg-white px-3 py-2.5 text-sm font-medium text-steel disabled:opacity-60"
+                >
+                  반려
+                </button>
+              </>
+            ) : null}
+            {approvalStatus === "APPROVED" ? (
+              <button
+                type="button"
+                onClick={() => updateApproval("pay")}
+                disabled={status === "updating"}
+                className="inline-flex items-center justify-center gap-2 rounded-md bg-marine px-3 py-2.5 text-sm font-medium text-white disabled:opacity-60"
+              >
+                <CheckCircle2 className="h-4 w-4" />
+                지급 완료 처리
+              </button>
+            ) : null}
+            <Link href="/expenses" className="inline-flex items-center justify-center rounded-md border border-line bg-white px-3 py-2.5 text-sm font-medium text-steel">
+              지출 목록 보기
+            </Link>
+          </div>
+        </div>
+      ) : null}
 
       {message ? <p className={`mt-3 text-sm ${status === "error" ? "text-[#b42318]" : "text-marine"}`}>{message}</p> : null}
     </section>

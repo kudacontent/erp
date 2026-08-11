@@ -18,6 +18,9 @@
 이 저장소 전체를 `/volume1/docker/kudalabs-erp`에 배치한다. 데이터 폴더는
 첫 실행 때 자동으로 생성되지만, File Station에서 미리 만들어도 된다.
 
+운영 배포는 이 문서의 NAS Docker Compose 구성만 사용한다. 프로젝트의 `next.config.mjs`는
+Docker self-hosting을 위한 `standalone` 출력을 사용하며, Vercel 배포 설정은 필요하지 않다.
+
 ## 2. 환경변수
 
 `.env.synology.example`을 NAS의 애플리케이션 폴더로 복사한 뒤 파일명을 `.env`로
@@ -39,6 +42,22 @@ HTTPS 인증서가 발급되어 있어야 한다.
 - `ADMIN_PASSWORD` (12자 이상, 운영용 새 비밀번호)
 - `GEMINI_API_KEY`
 - Google API 값
+
+세금계산서를 바로빌 테스트 서버로 발급하려면 아래 값도 설정한다.
+
+- `TAX_INVOICE_PROVIDER=barobill`
+- `BAROBILL_API_URL=https://testws.baroservice.com/TI.asmx`
+- `BAROBILL_CERT_KEY` (연동인증키)
+- `BAROBILL_CORP_NUM` (공급자 사업자번호, 숫자만)
+- `BAROBILL_INVOICER_CONTACT_ID` (공급자의 바로빌 회원 아이디)
+- `TAX_INVOICE_SUPPLIER_*` (공급자 상호·대표자·주소·연락처·이메일)
+
+바로빌 발급은 공급자의 공동인증서가 바로빌에 등록되어 있어야 한다. 테스트 환경도 공급받는자 이메일로 발송될 수 있으므로 실제 이메일을 입력하기 전에 확인한다. 발급 화면은 일반 세금계산서 작성, 임시 저장, 발급 요청, 관리번호 및 상태 조회를 지원한다.
+
+영수증·명함 OCR은 `web` 컨테이너가 `GEMINI_API_KEY`를 런타임에 읽어 Google Gemini API를
+호출한다. `UPLOAD_DIR=/app/uploads`는 Compose의 `./uploads`와 연결되어 있어 컨테이너를
+다시 만들거나 재시작해도 OCR 이미지가 NAS에 남는다. Container Manager에서 `uploads`
+폴더의 컨테이너 권한이 읽기/쓰기로 설정되어 있는지 확인한다.
 
 `POSTGRES_PASSWORD`, `DATABASE_URL`, `AUTH_SECRET`은 준비된 시놀로지 전용
 환경파일에 무작위 값으로 생성되어 있다. 이 파일을 Git에 추가하거나 메신저로
@@ -67,7 +86,7 @@ Gemini와 Google 기능을 아직 사용하지 않으면 해당 API 값은 비�
 남을 수 있으므로, 작업 후 터미널 기록을 정리한다.
 
 ```sh
-docker compose -p kuda-erp run --rm --no-deps \
+docker compose -p kudalabs-erp run --rm --no-deps \
   -e USER_EMAIL=employee@example.com \
   -e USER_NAME="홍길동" \
   -e USER_ROLE=EMPLOYEE \
@@ -82,6 +101,7 @@ docker compose -p kuda-erp run --rm --no-deps \
 ### SSH/터미널에서 실행
 
 ```sh
+mkdir -p uploads postgres-data redis-data backups
 docker compose config
 docker compose up -d --build
 ```
@@ -95,6 +115,20 @@ docker compose up -d --build
 ```sh
 docker compose ps
 docker compose logs --tail=200 migrate web worker db redis
+```
+
+OCR 키나 모델 설정만 바꾼 경우에는 새 이미지를 만들 필요 없이 다음처럼 web 컨테이너를
+재생성해도 된다. 코드 변경까지 함께 배포할 때는 `--build`를 유지한다.
+
+```sh
+docker compose up -d --force-recreate web worker
+docker compose exec web sh -lc 'test -n "$GEMINI_API_KEY" && test -d "$UPLOAD_DIR" && echo "Gemini OCR and upload storage are configured"'
+```
+
+세금계산서 키나 바로빌 공급자 정보만 바꾼 경우에도 `web`을 재생성한다.
+
+```sh
+docker compose -p kudalabs-erp up -d --force-recreate web worker
 ```
 
 초기 접속:
@@ -222,8 +256,8 @@ docker compose run --rm migrate \
 
 ```sh
 cd /volume1/docker/kudalabs-erp
-docker compose -p kuda-erp build migrate
-docker compose -p kuda-erp run --rm --no-deps \
+docker compose -p kudalabs-erp build migrate
+docker compose -p kudalabs-erp run --rm --no-deps \
   -e CLEAR_OPERATIONAL_DATA=YES \
   migrate node scripts/clear-operational-data.mjs
 ```
@@ -232,19 +266,83 @@ docker compose -p kuda-erp run --rm --no-deps \
 
 ## 9. Git push 기반 NAS 자동 배포
 
-Git push 때마다 NAS를 자동으로 업데이트하려면 다음 구성이 가능하다.
+이 저장소의 `.github/workflows/deploy.yml`은 `main`에 push되거나 GitHub Actions에서
+수동 실행될 때 NAS를 배포 대상으로 사용한다. Vercel은 사용하지 않는다.
 
-1. 프로젝트를 GitHub 또는 사내 Git 서버에 push한다.
-2. NAS의 프로젝트 폴더를 해당 저장소의 clone으로 유지한다.
-3. NAS에 SSH를 활성화하고, 배포 전용 SSH 키를 만든다.
-4. GitHub Actions에서 push 시 NAS에 접속해 아래 명령을 실행한다.
+### 한 번만 준비할 사항
+
+1. NAS의 `/volume1/docker/kudalabs-erp`를 `git@github.com:kudacontent/erp.git`의
+   `main` 브랜치를 추적하는 clone으로 유지한다.
+2. NAS에서 GitHub 저장소를 `pull`할 수 있도록 NAS에 읽기 전용 GitHub Deploy Key를
+   등록한다. GitHub Actions가 NAS에 접속하는 키와 저장소를 읽는 키는 서로 달라도 된다.
+3. NAS SSH 배포 계정에 Docker를 실행할 권한을 주거나, 해당 Docker 명령만
+   비밀번호 없이 `sudo`할 수 있게 한다.
+4. GitHub 저장소 **Settings → Secrets and variables → Actions → New repository secret**에
+   아래 값을 저장한다.
+
+   - `NAS_HOST`: NAS 접속 주소 또는 IP
+   - `NAS_PORT`: SSH 포트(현재 설정이 2235가 아니면 실제 포트, 비워두면 2235)
+   - `NAS_USER`: 배포용 NAS 계정
+   - `NAS_SSH_KEY`: NAS 접속용 개인키 전체
+   - `NAS_KNOWN_HOSTS`: 검증한 NAS 호스트 키 한 줄 전체
+
+`NAS_SSH_KEY`와 `.env`의 Gemini·바로빌 키는 GitHub 저장소에 올리지 않는다. 운영
+`.env`는 NAS 폴더에만 남겨두며, Git push 배포에서도 덮어쓰지 않는다.
+
+### 배포 동작
+
+GitHub Actions가 NAS에 SSH로 접속해 다음 순서로 실행한다.
 
 ```sh
 cd /volume1/docker/kudalabs-erp
 git pull --ff-only origin main
-docker compose -p kuda-erp up -d --build --remove-orphans
+docker compose -p kudalabs-erp rm -f migrate bootstrap || true
+docker compose -p kudalabs-erp up -d --build --remove-orphans
 ```
 
-GitHub Actions에는 `NAS_HOST`, `NAS_PORT`, `NAS_USER`, `NAS_SSH_KEY`, `NAS_KNOWN_HOSTS`를 저장한다. `NAS_SSH_KEY`는 관리자 비밀번호가 아닌 배포 전용 키를 사용한다. 이 방식은 push 후 자동 배포되므로 사실상 실시간에 가깝지만, 이미지 빌드와 마이그레이션에 걸리는 시간만큼 지연될 수 있다.
+배포 중에는 `migrate`와 `bootstrap`을 다시 실행하고, 완료 후 `web`과 `worker`가 실제로
+실행 중인지 확인한다. 이미지 빌드와 마이그레이션 시간만큼 지연될 수 있다.
 
-SSH를 열어두기 어렵다면 Synology **제어판 → 작업 스케줄러**에서 1~5분 간격으로 `git pull --ff-only`와 `docker compose -p kuda-erp up -d --build --remove-orphans`를 실행하는 대안이 있다. 외부에 SSH를 공개할 경우 방화벽과 키 인증을 함께 설정한다.
+NAS에서 파일을 직접 수정한 상태로 두면 자동 배포가 실수로 덮어쓰지 않도록 작업이
+실패한다. 먼저 변경 내용을 확인해 GitHub에 반영하거나, 필요한 경우에만 NAS에서
+명시적으로 커밋·stash한 뒤 다시 실행한다.
+
+GitHub Actions의 **Run workflow**로 첫 배포를 시험한 뒤 NAS에서 상태를 확인한다.
+
+```sh
+cd /volume1/docker/kudalabs-erp
+docker compose -p kudalabs-erp ps -a
+docker compose -p kudalabs-erp logs --tail=100 web worker migrate bootstrap
+```
+
+SSH를 열어두기 어렵다면 Synology **제어판 → 작업 스케줄러**의 직접 수정 자동 빌드
+방식을 사용할 수 있지만, GitHub Actions 배포와 동시에 켜 두면 두 빌드가 겹칠 수 있으므로
+한 가지 방식만 선택한다. 외부에 SSH를 공개할 경우 방화벽과 키 인증을 함께 설정한다.
+
+## 10. 연결 폴더 직접 수정 후 자동 빌드
+
+맥의 `/Volumes/docker/kudalabs-erp`처럼 NAS 프로젝트 폴더가 연결되어 있고, 파일을
+직접 수정하는 방식이면 Git push 없이도 자동 배포할 수 있다. `scripts/nas-auto-build.sh`는
+소스, Prisma, Docker 설정, `.env`의 해시를 비교해 변경이 있을 때만 빌드한다. 빌드 중에는
+잠금 폴더를 사용해 DSM 작업 스케줄러가 중복 빌드를 실행하지 않는다.
+
+DSM에서 **제어판 → 작업 스케줄러 → 생성 → 예약된 작업 → 사용자 정의 스크립트**를 선택한다.
+
+- 사용자: `root`
+- 일정: 1~5분마다
+- 실행 명령:
+
+```sh
+/bin/sh /volume1/docker/kudalabs-erp/scripts/nas-auto-build.sh
+```
+
+첫 등록 직후에는 아래처럼 수동으로 한 번 실행해 권한과 초기 빌드를 확인한다.
+
+```sh
+chmod +x /volume1/docker/kudalabs-erp/scripts/nas-auto-build.sh
+/bin/sh /volume1/docker/kudalabs-erp/scripts/nas-auto-build.sh
+tail -n 100 /volume1/docker/kudalabs-erp/.nas-auto-build.log
+```
+
+스크립트는 컨테이너만 재생성하며 `postgres-data`, `redis-data`, `uploads`, `backups`를
+삭제하지 않는다. 빌드가 실패하면 상태 해시를 저장하지 않아 다음 실행 때 자동으로 다시 시도한다.

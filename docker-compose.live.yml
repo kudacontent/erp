@@ -27,7 +27,7 @@ services:
       - ./tsconfig.json:/app/tsconfig.json
       - live_node_modules:/app/node_modules
       - live_next:/app/.next
-      - ./uploads:/app/uploads
+      - ./uploads:${UPLOAD_DIR:-/app/uploads}
 
   worker:
     build:
@@ -42,7 +42,7 @@ services:
       - ./src:/app/src
       - ./prisma:/app/prisma
       - live_node_modules:/app/node_modules
-      - ./uploads:/app/uploads
+      - ./uploads:${UPLOAD_DIR:-/app/uploads}
 
 volumes:
   live_node_modules:

@@ -159,10 +159,10 @@ export default async function ContractDetailPage({ params }: { params: Promise<{
                 <span className="shrink-0 rounded-md bg-white px-2 py-1 text-xs font-medium text-marine">{document.status}</span>
               </div>
               <Link
-                href={`/contracts/${contract.slug}/documents/${document.href}`}
+                href={document.href === "quote" ? "/documents/estimate" : `/contracts/${contract.slug}/documents/${document.href}`}
                 className="mt-4 block w-full rounded-md bg-white px-3 py-2 text-center text-sm font-medium text-ink"
               >
-                {document.action}
+                {document.href === "quote" ? "견적서 열기" : document.action}
               </Link>
             </div>
           ))}

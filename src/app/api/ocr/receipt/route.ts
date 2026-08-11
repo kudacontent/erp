@@ -1,12 +1,11 @@
-import { randomUUID } from "node:crypto";
-import { mkdir, writeFile } from "node:fs/promises";
-import path from "node:path";
 import { NextResponse } from "next/server";
 import { withAuth } from "@/lib/auth";
+import { GeminiApiError, generateVisionJson, MAX_IMAGE_BYTES } from "@/lib/gemini";
+import { isSupportedImageMimeType, normalizeMimeType, storeUpload } from "@/lib/upload-storage";
 
 export const runtime = "nodejs";
 
-type ReceiptResult = {
+type ReceiptData = {
   merchantName: string;
   businessNumber: string;
   spentAt: string;
@@ -18,12 +17,15 @@ type ReceiptResult = {
   approvalNumber: string;
   rawText: string;
   confidence: number;
+};
+
+type ReceiptResult = ReceiptData & {
   receiptImageUrl: string;
   receiptFileName: string;
   receiptMimeType: string;
 };
 
-const emptyResult: Omit<ReceiptResult, "receiptImageUrl" | "receiptFileName" | "receiptMimeType"> = {
+const emptyResult: ReceiptData = {
   merchantName: "",
   businessNumber: "",
   spentAt: "",
@@ -37,14 +39,35 @@ const emptyResult: Omit<ReceiptResult, "receiptImageUrl" | "receiptFileName" | "
   confidence: 0
 };
 
-function cleanJsonText(text: string) {
-  return text
-    .trim()
-    .replace(/^```json\s*/i, "")
-    .replace(/^```\s*/i, "")
-    .replace(/\s*```$/i, "")
-    .trim();
-}
+const receiptSchema = {
+  type: "OBJECT",
+  properties: {
+    merchantName: { type: "STRING" },
+    businessNumber: { type: "STRING" },
+    spentAt: { type: "STRING" },
+    amount: { type: "INTEGER" },
+    vatAmount: { type: "INTEGER" },
+    totalAmount: { type: "INTEGER" },
+    paymentMethod: { type: "STRING" },
+    cardLast4: { type: "STRING" },
+    approvalNumber: { type: "STRING" },
+    rawText: { type: "STRING" },
+    confidence: { type: "NUMBER" }
+  },
+  required: [
+    "merchantName",
+    "businessNumber",
+    "spentAt",
+    "amount",
+    "vatAmount",
+    "totalAmount",
+    "paymentMethod",
+    "cardLast4",
+    "approvalNumber",
+    "rawText",
+    "confidence"
+  ]
+};
 
 function toStringValue(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
@@ -64,7 +87,7 @@ function toMoney(value: unknown) {
 }
 
 function normalizeDate(value: unknown) {
-  const text = toStringValue(value).replace(/\./g, "-").replace(/\//g, "-");
+  const text = toStringValue(value).split(/[T ]/)[0].replace(/\./g, "-").replace(/\//g, "-");
 
   if (/^\d{4}-\d{1,2}-\d{1,2}$/.test(text)) {
     const [year, month, day] = text.split("-").map(Number);
@@ -79,14 +102,17 @@ function normalizeDate(value: unknown) {
 }
 
 function normalizeConfidence(value: unknown) {
-  if (typeof value !== "number" || Number.isNaN(value)) {
+  const numeric = typeof value === "number" ? value : Number(value);
+
+  if (!Number.isFinite(numeric)) {
     return 0;
   }
 
-  return Math.max(0, Math.min(1, value));
+  const normalized = numeric > 1 ? numeric / 100 : numeric;
+  return Math.max(0, Math.min(1, normalized));
 }
 
-function normalizeResult(raw: unknown) {
+function normalizeResult(raw: unknown): ReceiptData {
   if (!raw || typeof raw !== "object") {
     return emptyResult;
   }
@@ -106,46 +132,21 @@ function normalizeResult(raw: unknown) {
     paymentMethod: toStringValue(data.paymentMethod) || "법인카드",
     cardLast4: toStringValue(data.cardLast4).replace(/\D/g, "").slice(-4),
     approvalNumber: toStringValue(data.approvalNumber),
-    rawText: toStringValue(data.rawText),
+    rawText: toStringValue(data.rawText).slice(0, 50_000),
     confidence: normalizeConfidence(data.confidence)
-  } satisfies Omit<ReceiptResult, "receiptImageUrl" | "receiptFileName" | "receiptMimeType">;
-}
-
-function extractText(response: unknown) {
-  const data = response as {
-    candidates?: Array<{
-      content?: {
-        parts?: Array<{ text?: string }>;
-      };
-    }>;
   };
-
-  return data.candidates?.[0]?.content?.parts?.map((part) => part.text ?? "").join("").trim() ?? "";
 }
 
-function getExtension(mimeType: string) {
-  const extension = mimeType.split("/")[1]?.toLowerCase();
-
-  if (extension === "jpeg") {
-    return "jpg";
+function getErrorResponse(error: unknown, fallbackMessage: string) {
+  if (error instanceof GeminiApiError) {
+    return NextResponse.json({ ok: false, message: error.message }, { status: error.status });
   }
 
-  return ["png", "webp", "jpg", "gif"].includes(extension ?? "") ? extension : "bin";
+  console.error(fallbackMessage, error);
+  return NextResponse.json({ ok: false, message: fallbackMessage }, { status: 502 });
 }
 
 export const POST = withAuth(async (request) => {
-  const apiKey = process.env.GEMINI_API_KEY;
-
-  if (!apiKey) {
-    return NextResponse.json(
-      {
-        ok: false,
-        message: "GEMINI_API_KEY가 설정되지 않았습니다. 카드 영수증 OCR을 사용하려면 Google AI Studio API 키를 .env에 추가하세요."
-      },
-      { status: 503 }
-    );
-  }
-
   const formData = await request.formData();
   const file = formData.get("file");
 
@@ -153,22 +154,23 @@ export const POST = withAuth(async (request) => {
     return NextResponse.json({ ok: false, message: "분석할 카드 영수증 이미지가 없습니다." }, { status: 400 });
   }
 
-  if (!file.type.startsWith("image/")) {
-    return NextResponse.json({ ok: false, message: "이미지 형식의 카드 영수증만 분석할 수 있습니다." }, { status: 400 });
+  const mimeType = normalizeMimeType(file.type);
+
+  if (!isSupportedImageMimeType(mimeType)) {
+    return NextResponse.json({ ok: false, message: "JPG, PNG, WEBP, GIF, HEIC, HEIF 이미지만 분석할 수 있습니다." }, { status: 400 });
   }
 
-  if (file.size > 10 * 1024 * 1024) {
+  if (file.size > MAX_IMAGE_BYTES) {
     return NextResponse.json({ ok: false, message: "영수증 이미지는 10MB 이하로 올려주세요." }, { status: 413 });
   }
 
   const bytes = Buffer.from(await file.arrayBuffer());
-  const imageBase64 = bytes.toString("base64");
-  const model = process.env.GEMINI_MODEL || "gemini-2.5-flash";
   const prompt = `
 카드 영수증 이미지를 분석해서 아래 JSON 형식으로만 응답하세요.
 금액은 원 단위 정수로 작성하세요. 공급가액을 확인할 수 없으면 totalAmount에서 vatAmount를 뺀 값으로 계산하세요.
 날짜는 YYYY-MM-DD 형식으로 작성하고, 모르는 값은 빈 문자열 또는 0으로 두세요.
 paymentMethod는 법인카드, 개인카드, 현금, 계좌이체 중 가장 가까운 값으로 작성하세요.
+confidence는 추출 결과 전체 신뢰도를 0부터 1 사이 숫자로 작성하세요.
 
 {
   "merchantName": "",
@@ -185,66 +187,26 @@ paymentMethod는 법인카드, 개인카드, 현금, 계좌이체 중 가장 가
 }
 `;
 
-  const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-goog-api-key": apiKey
-    },
-    body: JSON.stringify({
-      contents: [
-        {
-          parts: [
-            {
-              inline_data: {
-                mime_type: file.type,
-                data: imageBase64
-              }
-            },
-            { text: prompt }
-          ]
-        }
-      ],
-      generationConfig: {
-        temperature: 0.1,
-        responseMimeType: "application/json"
-      }
-    })
-  });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    return NextResponse.json(
-      { ok: false, message: "카드 영수증 분석 API 호출에 실패했습니다.", details: errorText },
-      { status: response.status }
-    );
-  }
-
-  const data = await response.json();
-  const text = extractText(data);
-
   try {
-    const result = normalizeResult(JSON.parse(cleanJsonText(text)));
-    const uploadRoot = path.resolve(process.env.UPLOAD_DIR || path.join(process.cwd(), "uploads"));
-    const receiptDirectory = path.join(uploadRoot, "receipts");
-    const fileName = `${randomUUID()}.${getExtension(file.type)}`;
-
-    await mkdir(receiptDirectory, { recursive: true });
-    await writeFile(path.join(receiptDirectory, fileName), bytes, { mode: 0o600 });
+    const responseText = await generateVisionJson({
+      data: bytes.toString("base64"),
+      mimeType,
+      prompt,
+      schema: receiptSchema
+    });
+    const result = normalizeResult(JSON.parse(responseText));
+    const stored = await storeUpload({ bytes, directory: "receipts", mimeType });
 
     return NextResponse.json({
       ok: true,
       result: {
         ...result,
-        receiptImageUrl: `/api/uploads/receipts/${fileName}`,
-        receiptFileName: file.name || fileName,
-        receiptMimeType: file.type
+        receiptImageUrl: stored.fileUrl,
+        receiptFileName: file.name || stored.fileName,
+        receiptMimeType: stored.mimeType
       } satisfies ReceiptResult
     });
-  } catch {
-    return NextResponse.json(
-      { ok: false, message: "카드 영수증 분석 결과를 읽을 수 없습니다.", details: text },
-      { status: 502 }
-    );
+  } catch (error) {
+    return getErrorResponse(error, "카드 영수증 분석 결과를 처리하지 못했습니다.");
   }
 }, { roles: ["CEO", "ADMIN", "OPERATIONS", "ACCOUNTING"], write: true });

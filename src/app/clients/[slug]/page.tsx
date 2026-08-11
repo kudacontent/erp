@@ -77,6 +77,7 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ s
             <h3 className="mb-4 font-bold text-ink">기본 정보</h3>
             <div className="space-y-3 text-sm">
               <p className="text-steel">{client.address}</p>
+              {client.website ? <a href={client.website} target="_blank" rel="noreferrer" className="block break-all text-marine hover:underline">{client.website}</a> : null}
               <p className="text-ink">{client.memo}</p>
             </div>
           </section>
@@ -115,14 +116,19 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ s
           <h3 className="mb-5 font-bold text-ink">담당자 목록</h3>
           <div className="space-y-3">
             {contacts.map((contact) => (
-              <div key={contact.email} className="rounded-md bg-paper px-3 py-3">
+              <div key={`${contact.name}-${contact.email}`} className="rounded-md bg-paper px-3 py-3">
                 <div className="flex items-center justify-between">
                   <p className="text-sm font-bold text-ink">{contact.name}</p>
                   {contact.primary ? <span className="rounded-md bg-white px-2 py-1 text-xs text-marine">대표</span> : null}
                 </div>
-                <p className="mt-1 text-xs text-steel">{contact.role}</p>
+                <p className="mt-1 text-xs text-steel">{[contact.department, contact.role].filter(Boolean).join(" · ")}</p>
                 <p className="mt-2 text-xs text-steel">{contact.phone}</p>
                 <p className="mt-1 text-xs text-steel">{contact.email}</p>
+                {contact.businessCardImageUrl ? (
+                  <a href={contact.businessCardImageUrl} target="_blank" rel="noreferrer" className="mt-2 inline-flex text-xs font-medium text-marine hover:underline">
+                    명함 이미지 보기{contact.ocrConfidence ? ` · OCR ${Math.round(contact.ocrConfidence * 100)}%` : ""}
+                  </a>
+                ) : null}
               </div>
             ))}
           </div>

@@ -43,6 +43,7 @@ export async function getClientsForList(): Promise<ClientListItem[]> {
         email: primaryContact?.email ?? client.email ?? "-",
         address: client.address ?? "",
         businessNumber: client.businessNumber ?? "",
+        website: client.website ?? "",
         memo: client.memo ?? "",
         contracts: client.contracts.length,
         revenue: `${totalRevenue.toLocaleString("ko-KR")}만원`,
@@ -92,6 +93,7 @@ export async function getClientDetail(slug: string) {
         email: primaryContact?.email ?? dbClient.email ?? "-",
         address: dbClient.address ?? "",
         businessNumber: dbClient.businessNumber ?? "",
+        website: dbClient.website ?? "",
         memo: dbClient.memo ?? "",
         contracts: dbClient.contracts.length,
         revenue: `${totalRevenue.toLocaleString("ko-KR")}만원`,
@@ -101,8 +103,11 @@ export async function getClientDetail(slug: string) {
       contacts: dbClient.contacts.map((contact, index) => ({
         name: contact.name,
         role: contact.position ?? "-",
+        department: contact.department ?? "",
         phone: contact.phone ?? "-",
         email: contact.email ?? "-",
+        businessCardImageUrl: contact.businessCardImageUrl ?? "",
+        ocrConfidence: contact.ocrConfidence ? Number(contact.ocrConfidence) : null,
         primary: index === 0
       })),
       contracts: dbClient.contracts.map((contract) => ({

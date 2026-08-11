@@ -1,6 +1,7 @@
 import { Bot, CalendarPlus, CheckSquare, MessageSquareText, Users } from "lucide-react";
 import { FilterableMeetingsTable } from "@/components/filterable-meetings-table";
 import { MeetingRecorder } from "@/components/meeting-recorder";
+import { getClientsForList } from "@/lib/clients-service";
 import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
@@ -13,12 +14,16 @@ const statusLabels = {
   COMPLETED: "완료"
 } as const;
 
-export default async function MeetingsPage() {
-  const records = await prisma.meeting.findMany({
-    include: { client: true, _count: { select: { attendees: true } } },
-    orderBy: { startedAt: "desc" },
-    take: 200
-  });
+export default async function MeetingsPage({ searchParams }: { searchParams: Promise<{ clientId?: string }> }) {
+  const params = await searchParams;
+  const [clients, records] = await Promise.all([
+    getClientsForList(),
+    prisma.meeting.findMany({
+      include: { client: true, _count: { select: { attendees: true } } },
+      orderBy: { startedAt: "desc" },
+      take: 200
+    })
+  ]);
   const meetings = records.map((meeting) => ({
     id: meeting.id.slice(0, 8),
     title: meeting.title,
@@ -64,7 +69,10 @@ export default async function MeetingsPage() {
       </section>
 
       <div id="meeting-recorder">
-        <MeetingRecorder />
+        <MeetingRecorder
+          clients={clients.map((client) => ({ id: client.slug, name: client.name }))}
+          selectedClientId={params.clientId}
+        />
       </div>
 
       <section className="mb-6 grid gap-4 md:grid-cols-4">

@@ -29,3 +29,52 @@ a {
   color: inherit;
   text-decoration: none;
 }
+
+.document-preview-pane {
+  overscroll-behavior-x: contain;
+}
+
+@media print {
+  .document-page {
+    padding: 0 !important;
+  }
+
+  .document-page-header,
+  .document-toolbar,
+  .document-editor-pane {
+    display: none !important;
+  }
+
+  .document-workspace,
+  .document-workspace > .grid {
+    display: block !important;
+  }
+
+  .document-preview-pane {
+    display: block !important;
+    min-width: 0 !important;
+    overflow: visible !important;
+    border: 0 !important;
+    padding: 0 !important;
+    background: #fff !important;
+  }
+
+  .estimate-paper,
+  .invoice-paper {
+    width: 210mm !important;
+    min-width: 0 !important;
+    max-width: none !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+    box-shadow: none !important;
+  }
+
+  .estimate-paper,
+  .estimate-paper *,
+  .invoice-paper,
+  .invoice-paper * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    color-adjust: exact !important;
+  }
+}

@@ -3,6 +3,7 @@ import {
   ClipboardCheck,
   ContactRound,
   FileText,
+  FilePlus2,
   HandCoins,
   ReceiptText,
   ScanText,
@@ -16,8 +17,8 @@ export const modules = [
     title: "거래처",
     href: "/clients",
     icon: ContactRound,
-    metric: "명함 OCR 포함",
-    description: "발주처, 선사, 협력업체와 담당자 명함을 한곳에서 관리합니다."
+    metric: "명함에서 연결",
+    description: "명함 정보를 확인한 뒤 거래처와 담당자를 한 번에 등록합니다."
   },
   {
     title: "계약/매출",
@@ -30,8 +31,29 @@ export const modules = [
     title: "지출",
     href: "/expenses",
     icon: ReceiptText,
-    metric: "영수증 OCR",
-    description: "법인카드와 계좌이체 지출을 승인 흐름으로 관리합니다."
+    metric: "검수·승인",
+    description: "영수증으로 지출을 만들고 검수·승인·지급 상태를 연결합니다."
+  },
+  {
+    title: "견적서",
+    href: "/documents/estimate",
+    icon: FilePlus2,
+    metric: "작성·PDF",
+    description: "공급자 표와 항목별 VAT를 반영해 견적서를 발행합니다."
+  },
+  {
+    title: "인보이스",
+    href: "/documents/invoice",
+    icon: FileText,
+    metric: "작성·PDF",
+    description: "KUDA LABS 인보이스 양식으로 청구 항목과 지급 정보를 관리합니다."
+  },
+  {
+    title: "세금계산서",
+    href: "/tax-invoices",
+    icon: ReceiptText,
+    metric: "발행 요청",
+    description: "공급가액과 부가세를 검수한 뒤 발행 요청을 전송합니다."
   },
   {
     title: "회의",
@@ -67,7 +89,7 @@ export const heroStats = [
   { label: "등록 거래처", value: "0", sub: "신규 0", icon: ContactRound },
   { label: "진행 계약", value: "0", sub: "검토 0", icon: HandCoins },
   { label: "오늘 일정", value: "0", sub: "회의 0", icon: CalendarDays },
-  { label: "검수 대기", value: "0", sub: "OCR 0", icon: ScanText },
+  { label: "검수 대기", value: "0", sub: "명함·영수증 0", icon: ScanText },
   { label: "지출 승인", value: "0", sub: "증빙 0", icon: ReceiptText },
   { label: "보고 생성", value: "0", sub: "예정 없음", icon: FileText }
 ];
@@ -84,10 +106,10 @@ export const operationOverview = [
 ];
 
 export const erpFlowGroups = [
-  { title: "거래 시작", items: ["거래처", "명함 OCR", "담당자"] },
-  { title: "계약 처리", items: ["견적서", "계약서", "지출결의서"] },
+  { title: "거래 시작", items: ["명함으로 거래처 만들기", "담당자 연결"] },
+  { title: "계약 처리", items: ["견적서", "인보이스", "계약서"] },
   { title: "운영 기록", items: ["회의", "캘린더", "첨부 문서"] },
-  { title: "정산 마감", items: ["세금계산서", "입금 확인", "일일 보고"] }
+  { title: "정산 마감", items: ["영수증으로 지출 만들기", "지출 승인", "입금 확인"] }
 ];
 
 export const dashboardTaskRows: Array<{
@@ -110,7 +132,7 @@ export const calendarDays: Array<{ day: string; muted: boolean; active?: boolean
 export const kpis = [
   { label: "이번 달 매출", value: "0원", hint: "계약 데이터 연결 후 자동 집계", icon: HandCoins },
   { label: "이번 달 지출", value: "0원", hint: "승인 완료 지출 기준", icon: ReceiptText },
-  { label: "검수 대기 OCR", value: "0건", hint: "명함/영수증 분석 결과", icon: ScanText }
+  { label: "검수 대기", value: "0건", hint: "명함·영수증 분석 결과", icon: ScanText }
 ];
 
 export const todaySections = [
@@ -122,5 +144,5 @@ export const todaySections = [
 export const reviewItems = [
   { label: "미입금 계약", value: "0건", tone: "border-l-[#075985]", icon: TriangleAlert },
   { label: "승인 대기 지출", value: "0건", tone: "border-l-[#0891b2]", icon: ReceiptText },
-  { label: "OCR 검수 대기", value: "0건", tone: "border-l-[#0f172a]", icon: ScanText }
+  { label: "자료 검수 대기", value: "0건", tone: "border-l-[#0f172a]", icon: ScanText }
 ];

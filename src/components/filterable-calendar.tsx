@@ -83,8 +83,8 @@ export function FilterableCalendar({
   const categories = [{ label: "전체", count: calendarDays.reduce((sum, day) => sum + day.events.length, 0), color: "bg-marine" }, ...calendarCategories];
 
   return (
-    <section className="mb-6 grid gap-4 xl:grid-cols-[1fr_360px]">
-      <div className="rounded-md border border-line bg-white p-5">
+    <section className="mb-6 grid w-full min-w-0 max-w-full gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
+      <div className="min-w-0 rounded-md border border-line bg-white p-5">
         <div className="mb-5 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <h3 className="text-lg font-bold text-ink">일정 현황</h3>
@@ -102,7 +102,7 @@ export function FilterableCalendar({
           </label>
         </div>
 
-        <div className="overflow-x-auto rounded-md border border-line">
+        <div className="max-w-full overflow-x-auto rounded-md border border-line">
           <div className="grid min-w-[560px] grid-cols-7 overflow-hidden text-sm">
           {["월", "화", "수", "목", "금", "토", "일"].map((day) => (
             <div key={day} className="border-b border-line bg-paper px-3 py-2 text-center font-medium text-steel">
@@ -135,7 +135,7 @@ export function FilterableCalendar({
         </div>
       </div>
 
-      <aside className="space-y-4">
+      <aside className="w-full min-w-0 max-w-full space-y-4 overflow-hidden">
         <section className="rounded-md border border-line bg-white p-5">
           <h3 className="mb-4 font-bold text-ink">오늘 일정</h3>
           <div className="space-y-4">
@@ -164,15 +164,15 @@ export function FilterableCalendar({
                 type="button"
                 onClick={() => setSelectedCategory(category.label)}
                 className={[
-                  "flex w-full items-center justify-between rounded-md px-3 py-3 text-left",
+                  "grid w-full min-w-0 max-w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-3 overflow-hidden rounded-md px-3 py-3 text-left",
                   selectedCategory === category.label ? "bg-[#e8f5fb] ring-1 ring-marine" : "bg-paper"
                 ].join(" ")}
               >
-                <div className="flex items-center gap-2">
-                  <span className={`h-3 w-3 rounded-sm ${category.color}`} />
-                  <p className="text-sm font-medium text-ink">{category.label}</p>
+                <div className="flex min-w-0 items-center gap-2 overflow-hidden">
+                  <span className={`h-3 w-3 shrink-0 rounded-sm ${category.color}`} />
+                  <p className="min-w-0 truncate text-sm font-medium text-ink">{category.label}</p>
                 </div>
-                <p className="text-sm font-bold text-marine">{category.count}건</p>
+                <p className="shrink-0 whitespace-nowrap text-sm font-bold text-marine">{category.count}건</p>
               </button>
             ))}
           </div>

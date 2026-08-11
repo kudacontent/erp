@@ -3,8 +3,9 @@ import { ArrowLeft } from "lucide-react";
 import { ContractForm } from "@/components/contract-form";
 import { getClientsForList } from "@/lib/clients-service";
 
-export default async function NewContractPage() {
+export default async function NewContractPage({ searchParams }: { searchParams: Promise<{ clientId?: string }> }) {
   const clients = await getClientsForList();
+  const params = await searchParams;
 
   return (
     <main className="px-5 py-6 sm:px-8">
@@ -18,7 +19,10 @@ export default async function NewContractPage() {
         </div>
       </section>
 
-      <ContractForm clients={clients.map((client) => ({ name: client.name, slug: client.slug }))} />
+      <ContractForm
+        clients={clients.map((client) => ({ name: client.name, slug: client.slug }))}
+        selectedClientId={params.clientId}
+      />
     </main>
   );
 }
