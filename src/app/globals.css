@@ -34,8 +34,35 @@ a {
   overscroll-behavior-x: contain;
 }
 
+@page {
+  size: A4 portrait;
+  margin: 0;
+}
+
 @media print {
+  html,
+  body {
+    width: 210mm !important;
+    min-height: 297mm !important;
+    margin: 0 !important;
+    background: #fff !important;
+  }
+
+  body {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  .app-shell-content {
+    width: 210mm !important;
+    min-width: 0 !important;
+    padding-left: 0 !important;
+  }
+
   .document-page {
+    width: 210mm !important;
+    min-height: 297mm !important;
+    margin: 0 !important;
     padding: 0 !important;
   }
 
@@ -47,7 +74,9 @@ a {
 
   .document-workspace,
   .document-workspace > .grid {
+    width: 210mm !important;
     display: block !important;
+    margin: 0 !important;
   }
 
   .document-preview-pane {
@@ -62,11 +91,28 @@ a {
   .estimate-paper,
   .invoice-paper {
     width: 210mm !important;
+    min-height: 297mm !important;
     min-width: 0 !important;
     max-width: none !important;
-    min-height: 0 !important;
+    height: auto !important;
     margin: 0 !important;
+    padding: 12mm !important;
+    border-radius: 0 !important;
     box-shadow: none !important;
+    break-inside: auto;
+    page-break-inside: auto;
+  }
+
+  .estimate-paper table,
+  .invoice-paper table {
+    break-inside: auto;
+    page-break-inside: auto;
+  }
+
+  .estimate-paper tr,
+  .invoice-paper tr {
+    break-inside: avoid;
+    page-break-inside: avoid;
   }
 
   .estimate-paper,
@@ -76,5 +122,12 @@ a {
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
     color-adjust: exact !important;
+  }
+
+  .estimate-paper input,
+  .estimate-paper textarea,
+  .invoice-paper input,
+  .invoice-paper textarea {
+    border-radius: 0 !important;
   }
 }
