@@ -6,10 +6,13 @@ import { Loader2, Mic, Square } from "lucide-react";
 
 type RecorderStatus = "idle" | "recording" | "transcribing" | "saved" | "error";
 
-export function MeetingRecorder() {
+type ClientOption = { id: string; name: string };
+
+export function MeetingRecorder({ clients = [], selectedClientId = "" }: { clients?: ClientOption[]; selectedClientId?: string }) {
   const router = useRouter();
   const [title, setTitle] = useState("");
   const [meetingType, setMeetingType] = useState("내부 회의");
+  const [clientId, setClientId] = useState(selectedClientId);
   const [location, setLocation] = useState("");
   const [agenda, setAgenda] = useState("");
   const [status, setStatus] = useState<RecorderStatus>("idle");
@@ -24,6 +27,7 @@ export function MeetingRecorder() {
     formData.append("file", blob, `meeting-${Date.now()}.webm`);
     formData.append("title", title);
     formData.append("meetingType", meetingType);
+    formData.append("clientId", clientId);
     formData.append("location", location);
     formData.append("agenda", agenda);
     formData.append("startedAt", new Date().toISOString());
@@ -132,6 +136,13 @@ export function MeetingRecorder() {
             <option>거래처 미팅</option>
             <option>프로젝트 회의</option>
             <option>기타</option>
+          </select>
+        </label>
+        <label className="block">
+          <span className="text-xs font-medium text-steel">연결 거래처</span>
+          <select className={inputClass} value={clientId} onChange={(event) => setClientId(event.target.value)} disabled={status === "recording" || status === "transcribing"}>
+            <option value="">내부 회의</option>
+            {clients.map((client) => <option key={client.id} value={client.id}>{client.name}</option>)}
           </select>
         </label>
         <label className="block">

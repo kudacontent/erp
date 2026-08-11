@@ -1,4 +1,4 @@
-import { Camera, CheckCircle2, CreditCard, FilePlus2, ReceiptText } from "lucide-react";
+import { Camera, CheckCircle2, CreditCard } from "lucide-react";
 import { FilterableExpensesTable } from "@/components/filterable-expenses-table";
 import { ReceiptOcrForm } from "@/components/receipt-ocr-form";
 import { prisma } from "@/lib/prisma";
@@ -75,16 +75,9 @@ export default async function ExpensesPage() {
     amount: formatMoney(total)
   }));
   const paymentMethods = [...paymentTotals.entries()].map(([label, count]) => ({ label, value: `${count}건` }));
-  const receiptQueue = records.filter((expense) => expense.receiptImageUrl).slice(0, 5).map((expense) => ({
-    file: expense.receiptImageUrl?.split("/").pop() ?? "receipt",
-    vendor: parseMerchantName(expense.geminiAnalysis) || expense.client?.name || "거래처 미지정",
-    amount: formatMoney(expense.totalAmount),
-    status: approvalLabels[expense.approvalStatus]
-  }));
-
   const expenseStats = [
     { label: "이번 달 지출", value: formatMoney(monthTotal), count: `${thisMonth.length}건` },
-    { label: "OCR 검수", value: `${receiptCount}건`, count: "영수증" },
+    { label: "증빙 등록", value: `${receiptCount}건`, count: "영수증" },
     { label: "승인 대기", value: `${pendingCount}건`, count: "결재 필요" },
     { label: "전체 지출", value: `${records.length}건`, count: "운영 데이터" }
   ];
@@ -96,13 +89,9 @@ export default async function ExpensesPage() {
           <h2 className="text-3xl font-bold text-ink">지출 및 매입</h2>
         </div>
         <div className="flex flex-wrap gap-2">
-          <a href="#receipt-ocr" className="inline-flex items-center gap-2 rounded-md border border-line bg-white px-3 py-2 text-sm font-medium text-ink">
-            <Camera className="h-4 w-4 text-marine" />
-            영수증 스캔
-          </a>
           <a href="#receipt-ocr" className="inline-flex items-center gap-2 rounded-md bg-marine px-3 py-2 text-sm font-medium text-white">
-            <FilePlus2 className="h-4 w-4" />
-            지출 등록
+            <Camera className="h-4 w-4" />
+            영수증으로 지출 만들기
           </a>
         </div>
       </section>
@@ -125,27 +114,6 @@ export default async function ExpensesPage() {
         <FilterableExpensesTable expenses={expenseRows} statusOptions={["전체", "승인 대기", "검토", "승인 완료", "지급 완료"]} />
 
         <aside className="space-y-4">
-          <section className="rounded-md border border-line bg-white p-5">
-            <div className="mb-4 flex items-center gap-2">
-              <ReceiptText className="h-5 w-5 text-marine" />
-              <h3 className="font-bold text-ink">영수증 OCR</h3>
-            </div>
-            <div className="space-y-3">
-              {receiptQueue.length ? receiptQueue.map((item) => (
-                <div key={item.file} className="rounded-md bg-paper px-3 py-3">
-                  <div className="flex items-center justify-between gap-3">
-                    <p className="truncate text-sm font-medium text-ink">{item.vendor}</p>
-                    <p className="shrink-0 text-sm font-bold text-marine">{item.amount}</p>
-                  </div>
-                  <div className="mt-2 flex items-center justify-between text-xs text-steel">
-                    <span className="truncate">{item.file}</span>
-                    <span>{item.status}</span>
-                  </div>
-                </div>
-              )) : <p className="rounded-md bg-paper px-3 py-4 text-sm font-medium text-steel">스캔된 영수증이 없습니다.</p>}
-            </div>
-          </section>
-
           <section className="rounded-md border border-line bg-white p-5">
             <div className="mb-4 flex items-center gap-2">
               <CreditCard className="h-5 w-5 text-marine" />

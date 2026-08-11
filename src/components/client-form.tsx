@@ -14,9 +14,11 @@ const initialForm: CreateClientInput = {
   phone: "",
   email: "",
   address: "",
+  website: "",
   memo: "",
   contactName: "",
   contactPosition: "",
+  contactDepartment: "",
   contactPhone: "",
   contactEmail: ""
 };
@@ -102,6 +104,10 @@ export function ClientForm() {
             <span className="text-sm font-medium text-steel">주소</span>
             <input className={inputClass} value={form.address} onChange={(event) => updateField("address", event.target.value)} />
           </label>
+          <label className="block">
+            <span className="text-sm font-medium text-steel">웹사이트</span>
+            <input className={inputClass} value={form.website} onChange={(event) => updateField("website", event.target.value)} />
+          </label>
           <label className="block md:col-span-2">
             <span className="text-sm font-medium text-steel">메모</span>
             <textarea
@@ -132,6 +138,12 @@ export function ClientForm() {
               className="w-full rounded-md border border-line bg-paper px-3 py-2 text-sm outline-none focus:border-marine"
               value={form.contactPosition}
               onChange={(event) => updateField("contactPosition", event.target.value)}
+            />
+            <input
+              placeholder="부서"
+              className="w-full rounded-md border border-line bg-paper px-3 py-2 text-sm outline-none focus:border-marine"
+              value={form.contactDepartment}
+              onChange={(event) => updateField("contactDepartment", event.target.value)}
             />
             <input
               placeholder="휴대폰"

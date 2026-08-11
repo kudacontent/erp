@@ -46,6 +46,7 @@ export const POST = withAuth(async (request, _context, user) => {
   const file = formData.get("file");
   const title = typeof formData.get("title") === "string" ? String(formData.get("title")).trim() : "";
   const meetingType = typeof formData.get("meetingType") === "string" ? String(formData.get("meetingType")).trim() : "내부 회의";
+  const clientId = typeof formData.get("clientId") === "string" ? String(formData.get("clientId")).trim() : "";
   const location = typeof formData.get("location") === "string" ? String(formData.get("location")).trim() : "";
   const agenda = typeof formData.get("agenda") === "string" ? String(formData.get("agenda")).trim() : "";
   const startedAtRaw = typeof formData.get("startedAt") === "string" ? String(formData.get("startedAt")) : "";
@@ -63,12 +64,20 @@ export const POST = withAuth(async (request, _context, user) => {
     return NextResponse.json({ ok: false, message: "회의 시작 시간이 올바르지 않습니다." }, { status: 400 });
   }
 
+  if (clientId) {
+    const client = await prisma.client.findUnique({ where: { id: clientId }, select: { id: true } });
+
+    if (!client) {
+      return NextResponse.json({ ok: false, message: "연결할 거래처를 찾을 수 없습니다." }, { status: 400 });
+    }
+  }
+
   if (file.size > 50 * 1024 * 1024) {
     return NextResponse.json({ ok: false, message: "회의 녹음 파일은 50MB 이하로 올려주세요." }, { status: 413 });
   }
 
   const bytes = Buffer.from(await file.arrayBuffer());
-  const model = process.env.GEMINI_MODEL || "gemini-2.5-flash";
+  const model = process.env.GEMINI_MODEL || "gemini-3.5-flash";
   const prompt = `
 이 음성 녹음을 한국어 회의록 초안으로 전사하세요.
 들리지 않는 부분은 [불명확]으로 표시하고, 추측으로 내용을 만들지 마세요.
@@ -123,6 +132,7 @@ export const POST = withAuth(async (request, _context, user) => {
         title,
         meetingType: meetingType || "내부 회의",
         status: "DONE",
+        clientId: clientId || null,
         location: location || null,
         startedAt,
         endedAt: new Date(),

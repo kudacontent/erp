@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { ArrowLeft, FileText, Send, Save } from "lucide-react";
 import { TaxInvoiceIssuePanel } from "@/components/tax-invoice-issue-panel";
 import { documentTemplates } from "@/lib/contracts-data";
@@ -13,6 +13,11 @@ export default async function ContractDocumentPage({
   params: Promise<{ slug: string; documentType: string }>;
 }) {
   const { slug, documentType } = await params;
+
+  if (documentType === "quote") {
+    redirect("/documents/estimate");
+  }
+
   const contract = await getContractForDetail(slug);
   const template = documentTemplates[documentType as DocumentType];
 
@@ -409,10 +414,10 @@ export default async function ContractDocumentPage({
             </Link>
             <h2 className="text-3xl font-bold text-ink">세금계산서 발행</h2>
           </div>
-          <button className="inline-flex items-center gap-2 rounded-md bg-marine px-3 py-2 text-sm font-medium text-white">
+          <Link href={`/tax-invoices?contractId=${encodeURIComponent(contract.slug)}`} className="inline-flex items-center gap-2 rounded-md bg-marine px-3 py-2 text-sm font-medium text-white">
             <Send className="h-4 w-4" />
             발행 요청
-          </button>
+          </Link>
         </section>
 
         <section className="grid gap-4 xl:grid-cols-[1fr_360px]">

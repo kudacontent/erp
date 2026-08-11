@@ -27,11 +27,18 @@ export const createClientSchema = z.object({
   phone: z.string().trim().optional(),
   email: z.string().trim().email("이메일 형식이 올바르지 않습니다.").optional().or(z.literal("")),
   address: z.string().trim().optional(),
+  website: z.string().trim().max(500).optional(),
   memo: z.string().trim().optional(),
   contactName: z.string().trim().min(1, "담당자 이름을 입력하세요."),
   contactPosition: z.string().trim().optional(),
+  contactDepartment: z.string().trim().optional(),
   contactPhone: z.string().trim().optional(),
-  contactEmail: z.string().trim().email("담당자 이메일 형식이 올바르지 않습니다.").optional().or(z.literal(""))
+  contactEmail: z.string().trim().email("담당자 이메일 형식이 올바르지 않습니다.").optional().or(z.literal("")),
+  businessCardImageUrl: z.string().trim().max(500).optional().nullable(),
+  businessCardFileName: z.string().trim().max(255).optional().nullable(),
+  businessCardMimeType: z.string().trim().max(120).optional().nullable(),
+  ocrRawText: z.string().max(50_000).optional().nullable(),
+  ocrConfidence: z.coerce.number().min(0).max(1).optional().nullable()
 });
 
 export type CreateClientInput = z.infer<typeof createClientSchema>;

@@ -40,7 +40,7 @@ services:
       redis:
         condition: service_healthy
     volumes:
-      - ./uploads:/app/uploads
+      - ./uploads:${UPLOAD_DIR:-/app/uploads}
 
   worker:
     build:
@@ -56,7 +56,7 @@ services:
       redis:
         condition: service_healthy
     volumes:
-      - ./uploads:/app/uploads
+      - ./uploads:${UPLOAD_DIR:-/app/uploads}
 
   db:
     image: ${POSTGRES_IMAGE:-postgres:16.14-alpine}

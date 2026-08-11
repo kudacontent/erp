@@ -7,6 +7,7 @@ export type ClientListItem = {
   email: string;
   address: string;
   businessNumber: string;
+  website?: string;
   memo: string;
   contracts: number;
   revenue: string;

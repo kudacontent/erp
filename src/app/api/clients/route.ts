@@ -12,7 +12,7 @@ export const GET = withAuth(async () => {
   return NextResponse.json({ ok: true, clients });
 });
 
-export const POST = withAuth(async (request) => {
+export const POST = withAuth(async (request, _context, user) => {
   if (!process.env.DATABASE_URL) {
     return NextResponse.json(
       {
@@ -38,27 +38,53 @@ export const POST = withAuth(async (request) => {
 
   const data = parsed.data;
 
-  const client = await prisma.client.create({
-    data: {
-      name: data.name,
-      clientType: data.clientType,
-      businessNumber: data.businessNumber || null,
-      phone: data.phone || null,
-      email: data.email || null,
-      address: data.address || null,
-      memo: data.memo || null,
-      contacts: {
-        create: {
-          name: data.contactName,
-          position: data.contactPosition || null,
-          phone: data.contactPhone || null,
-          email: data.contactEmail || null
+  const businessCardImageUrl = data.businessCardImageUrl?.startsWith("/api/uploads/business-cards/")
+    ? data.businessCardImageUrl
+    : null;
+  const client = await prisma.$transaction(async (transaction) => {
+    const created = await transaction.client.create({
+      data: {
+        name: data.name,
+        clientType: data.clientType,
+        businessNumber: data.businessNumber || null,
+        phone: data.phone || null,
+        email: data.email || null,
+        address: data.address || null,
+        website: data.website || null,
+        memo: data.memo || null,
+        contacts: {
+          create: {
+            name: data.contactName,
+            position: data.contactPosition || null,
+            department: data.contactDepartment || null,
+            phone: data.contactPhone || null,
+            email: data.contactEmail || null,
+            businessCardImageUrl,
+            ocrRawText: data.ocrRawText || null,
+            ocrConfidence: data.ocrConfidence ?? null
+          }
         }
+      },
+      include: {
+        contacts: true
       }
-    },
-    include: {
-      contacts: true
+    });
+
+    if (businessCardImageUrl) {
+      await transaction.attachment.create({
+        data: {
+          entityType: "CLIENT_CONTACT",
+          entityId: created.contacts[0]?.id || created.id,
+          fileName: data.businessCardFileName || "business-card",
+          fileUrl: businessCardImageUrl,
+          mimeType: data.businessCardMimeType || "image/*",
+          fileSize: null,
+          uploadedBy: user.id
+        }
+      });
     }
+
+    return created;
   });
 
   return NextResponse.json({ ok: true, client });

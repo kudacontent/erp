@@ -122,10 +122,14 @@ export default async function ContractsPage() {
             <h3 className="font-bold text-ink">문서 처리</h3>
           </div>
           <div className="space-y-3">
-            <div className="rounded-md bg-paper px-3 py-3">
-              <p className="text-sm text-steel">견적서 작성</p>
-              <p className="mt-1 text-xl font-bold text-ink">0건</p>
-            </div>
+            <Link href="/documents/estimate" className="block rounded-md bg-paper px-3 py-3 transition hover:bg-[#e8f5fb]">
+              <p className="text-sm text-steel">견적서</p>
+              <p className="mt-1 text-sm font-bold text-marine">바로 작성</p>
+            </Link>
+            <Link href="/documents/invoice" className="block rounded-md bg-paper px-3 py-3 transition hover:bg-[#e8f5fb]">
+              <p className="text-sm text-steel">인보이스</p>
+              <p className="mt-1 text-sm font-bold text-marine">바로 작성</p>
+            </Link>
             <div className="rounded-md bg-paper px-3 py-3">
               <p className="text-sm text-steel">계약서 검토</p>
               <p className="mt-1 text-xl font-bold text-ink">0건</p>

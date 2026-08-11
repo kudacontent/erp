@@ -1,12 +1,13 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Camera, Loader2, Save, Upload } from "lucide-react";
+import { ArrowLeft, Camera, CheckCircle2, FilePlus2, Loader2, RotateCcw, Save, Upload } from "lucide-react";
 
 type OcrResult = {
   companyName: string;
+  businessNumber: string;
   contactName: string;
   position: string;
   department: string;
@@ -16,11 +17,16 @@ type OcrResult = {
   address: string;
   website: string;
   clientType: string;
+  rawText: string;
   confidence: number;
+  businessCardImageUrl: string;
+  businessCardFileName: string;
+  businessCardMimeType: string;
 };
 
 const emptyResult: OcrResult = {
   companyName: "",
+  businessNumber: "",
   contactName: "",
   position: "",
   department: "",
@@ -30,7 +36,11 @@ const emptyResult: OcrResult = {
   address: "",
   website: "",
   clientType: "협력업체",
-  confidence: 0
+  rawText: "",
+  confidence: 0,
+  businessCardImageUrl: "",
+  businessCardFileName: "",
+  businessCardMimeType: ""
 };
 
 export function BusinessCardOcrForm() {
@@ -38,6 +48,7 @@ export function BusinessCardOcrForm() {
   const [file, setFile] = useState<File | null>(null);
   const [result, setResult] = useState<OcrResult>(emptyResult);
   const [status, setStatus] = useState<"idle" | "analyzing" | "done" | "saving" | "saved" | "error">("idle");
+  const [savedClient, setSavedClient] = useState<{ id: string; name: string } | null>(null);
   const [message, setMessage] = useState("");
 
   const previewUrl = useMemo(() => {
@@ -47,6 +58,12 @@ export function BusinessCardOcrForm() {
 
     return URL.createObjectURL(file);
   }, [file]);
+
+  useEffect(() => () => {
+    if (previewUrl) {
+      URL.revokeObjectURL(previewUrl);
+    }
+  }, [previewUrl]);
 
   async function handleAnalyze() {
     if (!file) {
@@ -59,21 +76,25 @@ export function BusinessCardOcrForm() {
     const formData = new FormData();
     formData.append("file", file);
 
-    const response = await fetch("/api/ocr/business-card", {
-      method: "POST",
-      body: formData
-    });
+    try {
+      const response = await fetch("/api/ocr/business-card", {
+        method: "POST",
+        body: formData
+      });
+      const data = await response.json();
 
-    const data = await response.json();
+      if (!response.ok) {
+        setStatus("error");
+        setMessage(data.message ?? "분석에 실패했습니다.");
+        return;
+      }
 
-    if (!response.ok) {
+      setResult(data.result);
+      setStatus("done");
+    } catch {
       setStatus("error");
-      setMessage(data.message ?? "분석에 실패했습니다.");
-      return;
+      setMessage("네트워크 오류로 명함 분석에 실패했습니다.");
     }
-
-    setResult(data.result);
-    setStatus("done");
   }
 
   function mapClientType(type: string) {
@@ -83,6 +104,7 @@ export function BusinessCardOcrForm() {
       협력업체: "PARTNER",
       공급업체: "SUPPLIER",
       정비업체: "MAINTENANCE",
+      "회계/세무": "ACCOUNTING_TAX",
       잠재고객: "PROSPECT",
       기타: "OTHER"
     };
@@ -100,38 +122,60 @@ export function BusinessCardOcrForm() {
     setStatus("saving");
     setMessage("");
 
-    const response = await fetch("/api/clients", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        name: result.companyName,
-        clientType: mapClientType(result.clientType),
-        phone: result.phone,
-        email: result.email,
-        address: result.address,
-        memo: result.website ? `웹사이트: ${result.website}` : "",
-        contactName: result.contactName,
-        contactPosition: result.position,
-        contactPhone: result.mobile || result.phone,
-        contactEmail: result.email
-      })
-    });
+    try {
+      const response = await fetch("/api/clients", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: result.companyName,
+          clientType: mapClientType(result.clientType),
+          businessNumber: result.businessNumber,
+          phone: result.phone,
+          email: result.email,
+          address: result.address,
+          website: result.website,
+          memo: "",
+          contactName: result.contactName,
+          contactPosition: result.position,
+          contactDepartment: result.department,
+          contactPhone: result.mobile || result.phone,
+          contactEmail: result.email,
+          businessCardImageUrl: result.businessCardImageUrl,
+          businessCardFileName: result.businessCardFileName,
+          businessCardMimeType: result.businessCardMimeType,
+          ocrRawText: result.rawText,
+          ocrConfidence: result.confidence
+        })
+      });
 
-    const data = await response.json();
+      const data = await response.json();
 
-    if (!response.ok) {
+      if (!response.ok) {
+        setStatus("error");
+        setMessage(data.message ?? "저장에 실패했습니다.");
+        return;
+      }
+
+      setStatus("saved");
+      setSavedClient({ id: data.client.id, name: data.client.name });
+      setMessage("거래처와 담당자가 저장되었습니다. 다음 업무를 선택하세요.");
+      router.refresh();
+    } catch {
       setStatus("error");
-      setMessage(data.message ?? "저장에 실패했습니다.");
-      return;
+      setMessage("네트워크 오류로 거래처 저장에 실패했습니다.");
     }
-
-    setStatus("saved");
-    router.push(`/clients/${data.client.id}`);
-    router.refresh();
   }
 
   function updateField<K extends keyof OcrResult>(key: K, value: OcrResult[K]) {
     setResult((current) => ({ ...current, [key]: value }));
+  }
+
+  function resetWorkflow() {
+    setFile(null);
+    setResult(emptyResult);
+    setStatus("idle");
+    setSavedClient(null);
+    setMessage("");
   }
 
   const inputClass = "mt-2 w-full rounded-md border border-line bg-paper px-3 py-2 text-sm text-ink outline-none focus:border-marine";
@@ -144,18 +188,47 @@ export function BusinessCardOcrForm() {
             <ArrowLeft className="h-4 w-4" />
             거래처 목록
           </Link>
-          <h2 className="text-3xl font-bold text-ink">명함 스캔</h2>
+          <h2 className="text-3xl font-bold text-ink">명함으로 거래처 만들기</h2>
+          <p className="mt-2 text-sm text-steel">명함 촬영 → 정보 검수 → 거래처·담당자 등록 → 다음 업무 연결</p>
         </div>
         <button
           type="button"
           className="inline-flex items-center gap-2 rounded-md bg-marine px-3 py-2 text-sm font-medium text-white"
-          disabled={status !== "done" && status !== "saving"}
+          disabled={status !== "done"}
           onClick={handleSave}
         >
           {status === "saving" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-          거래처로 저장
+          검수 완료 · 거래처 저장
         </button>
       </section>
+
+      {savedClient ? (
+        <section className="mb-6 rounded-md border border-[#b6ddea] bg-[#f3fbfe] p-5">
+          <div className="flex items-start gap-3">
+            <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-marine" />
+            <div>
+              <h3 className="font-bold text-ink">거래처 등록 완료</h3>
+              <p className="mt-1 text-sm text-steel"><span className="font-bold text-ink">{savedClient.name}</span> 거래처와 담당자 정보가 저장되었습니다.</p>
+            </div>
+          </div>
+          <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+            <Link href={`/clients/${savedClient.id}`} className="inline-flex items-center justify-center rounded-md bg-marine px-3 py-2.5 text-sm font-medium text-white">
+              거래처 상세 보기
+            </Link>
+            <Link href={`/meetings?clientId=${savedClient.id}`} className="inline-flex items-center justify-center rounded-md border border-line bg-white px-3 py-2.5 text-sm font-medium text-steel">
+              회의 기록 연결
+            </Link>
+            <Link href={`/contracts/new?clientId=${savedClient.id}`} className="inline-flex items-center justify-center gap-2 rounded-md border border-line bg-white px-3 py-2.5 text-sm font-medium text-steel">
+              <FilePlus2 className="h-4 w-4 text-marine" />
+              계약·견적 시작
+            </Link>
+            <button type="button" onClick={resetWorkflow} className="inline-flex items-center justify-center gap-2 rounded-md border border-line bg-white px-3 py-2.5 text-sm font-medium text-steel">
+              <RotateCcw className="h-4 w-4 text-marine" />
+              다른 명함 스캔
+            </button>
+          </div>
+        </section>
+      ) : null}
 
       <section className="grid gap-4 xl:grid-cols-[420px_1fr]">
         <div className="space-y-4">
@@ -180,7 +253,13 @@ export function BusinessCardOcrForm() {
                 type="file"
                 accept="image/*"
                 className="hidden"
-                onChange={(event) => setFile(event.target.files?.[0] ?? null)}
+                onChange={(event) => {
+                  setFile(event.target.files?.[0] ?? null);
+                  setResult(emptyResult);
+                  setSavedClient(null);
+                  setStatus("idle");
+                  setMessage("");
+                }}
               />
             </label>
 
@@ -214,7 +293,15 @@ export function BusinessCardOcrForm() {
             </label>
             <label className="block">
               <span className="text-sm font-medium text-steel">거래처 유형</span>
-              <input className={inputClass} value={result.clientType} onChange={(event) => updateField("clientType", event.target.value)} />
+              <select className={inputClass} value={result.clientType} onChange={(event) => updateField("clientType", event.target.value)}>
+                {['선사', '발주처', '협력업체', '공급업체', '정비업체', '회계/세무', '잠재고객', '기타'].map((type) => (
+                  <option key={type} value={type}>{type}</option>
+                ))}
+              </select>
+            </label>
+            <label className="block">
+              <span className="text-sm font-medium text-steel">사업자등록번호</span>
+              <input className={inputClass} value={result.businessNumber} onChange={(event) => updateField("businessNumber", event.target.value)} />
             </label>
             <label className="block">
               <span className="text-sm font-medium text-steel">이름</span>
@@ -247,6 +334,14 @@ export function BusinessCardOcrForm() {
             <label className="block md:col-span-2">
               <span className="text-sm font-medium text-steel">웹사이트</span>
               <input className={inputClass} value={result.website} onChange={(event) => updateField("website", event.target.value)} />
+            </label>
+            <label className="block md:col-span-2">
+              <span className="text-sm font-medium text-steel">OCR 원문</span>
+              <textarea
+                className="mt-2 min-h-28 w-full rounded-md border border-line bg-paper px-3 py-2 text-sm text-ink outline-none focus:border-marine"
+                value={result.rawText}
+                onChange={(event) => updateField("rawText", event.target.value)}
+              />
             </label>
           </div>
         </div>

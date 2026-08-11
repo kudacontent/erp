@@ -4,7 +4,7 @@ import { calendarCategories, calendarDays, calendarStats, todayEvents, upcomingE
 
 export default function CalendarPage() {
   return (
-    <main className="px-5 py-6 sm:px-8">
+    <main className="min-w-0 max-w-full px-5 py-6 sm:px-8">
       <section className="mb-6 flex flex-col gap-4 border-b border-line pb-5 lg:flex-row lg:items-end lg:justify-between">
         <div>
           <h2 className="text-3xl font-bold text-ink">캘린더</h2>
@@ -26,7 +26,7 @@ export default function CalendarPage() {
 
       <FilterableCalendar calendarDays={calendarDays} todayEvents={todayEvents} calendarCategories={calendarCategories} />
 
-      <section className="grid gap-4 xl:grid-cols-[1fr_360px]">
+      <section className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
         <div className="rounded-md border border-line bg-white p-5">
           <h3 className="mb-4 font-bold text-ink">예정 일정</h3>
           <div className="space-y-3">

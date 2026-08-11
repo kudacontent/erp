@@ -1,8 +1,13 @@
 import { NextResponse } from "next/server";
 import { withAuth } from "@/lib/auth";
+import { GeminiApiError, generateVisionJson, MAX_IMAGE_BYTES } from "@/lib/gemini";
+import { isSupportedImageMimeType, normalizeMimeType, storeUpload } from "@/lib/upload-storage";
 
-type BusinessCardResult = {
+export const runtime = "nodejs";
+
+type BusinessCardData = {
   companyName: string;
+  businessNumber: string;
   contactName: string;
   position: string;
   department: string;
@@ -12,11 +17,19 @@ type BusinessCardResult = {
   address: string;
   website: string;
   clientType: string;
+  rawText: string;
   confidence: number;
 };
 
-const emptyResult: BusinessCardResult = {
+type BusinessCardResult = BusinessCardData & {
+  businessCardImageUrl: string;
+  businessCardFileName: string;
+  businessCardMimeType: string;
+};
+
+const emptyResult: BusinessCardData = {
   companyName: "",
+  businessNumber: "",
   contactName: "",
   position: "",
   department: "",
@@ -26,19 +39,45 @@ const emptyResult: BusinessCardResult = {
   address: "",
   website: "",
   clientType: "기타",
+  rawText: "",
   confidence: 0
 };
 
-const clientTypes = ["선사", "발주처", "협력업체", "공급업체", "정비업체", "잠재고객", "기타"];
+const clientTypes = ["선사", "발주처", "협력업체", "공급업체", "정비업체", "회계/세무", "잠재고객", "기타"];
 
-function cleanJsonText(text: string) {
-  return text
-    .trim()
-    .replace(/^```json\s*/i, "")
-    .replace(/^```\s*/i, "")
-    .replace(/\s*```$/i, "")
-    .trim();
-}
+const businessCardSchema = {
+  type: "OBJECT",
+  properties: {
+    companyName: { type: "STRING" },
+    businessNumber: { type: "STRING" },
+    contactName: { type: "STRING" },
+    position: { type: "STRING" },
+    department: { type: "STRING" },
+    mobile: { type: "STRING" },
+    phone: { type: "STRING" },
+    email: { type: "STRING" },
+    address: { type: "STRING" },
+    website: { type: "STRING" },
+    clientType: { type: "STRING", enum: clientTypes },
+    rawText: { type: "STRING" },
+    confidence: { type: "NUMBER" }
+  },
+  required: [
+    "companyName",
+    "businessNumber",
+    "contactName",
+    "position",
+    "department",
+    "mobile",
+    "phone",
+    "email",
+    "address",
+    "website",
+    "clientType",
+    "rawText",
+    "confidence"
+  ]
+};
 
 function toStringValue(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
@@ -50,14 +89,17 @@ function normalizeClientType(value: unknown) {
 }
 
 function normalizeConfidence(value: unknown) {
-  if (typeof value !== "number" || Number.isNaN(value)) {
+  const numeric = typeof value === "number" ? value : Number(value);
+
+  if (!Number.isFinite(numeric)) {
     return 0;
   }
 
-  return Math.max(0, Math.min(1, value));
+  const normalized = numeric > 1 ? numeric / 100 : numeric;
+  return Math.max(0, Math.min(1, normalized));
 }
 
-function normalizeResult(raw: unknown): BusinessCardResult {
+function normalizeResult(raw: unknown): BusinessCardData {
   if (!raw || typeof raw !== "object") {
     return emptyResult;
   }
@@ -66,6 +108,7 @@ function normalizeResult(raw: unknown): BusinessCardResult {
 
   return {
     companyName: toStringValue(data.companyName),
+    businessNumber: toStringValue(data.businessNumber),
     contactName: toStringValue(data.contactName),
     position: toStringValue(data.position),
     department: toStringValue(data.department),
@@ -75,35 +118,21 @@ function normalizeResult(raw: unknown): BusinessCardResult {
     address: toStringValue(data.address),
     website: toStringValue(data.website),
     clientType: normalizeClientType(data.clientType),
+    rawText: toStringValue(data.rawText).slice(0, 50_000),
     confidence: normalizeConfidence(data.confidence)
   };
 }
 
-function extractText(response: unknown) {
-  const data = response as {
-    candidates?: Array<{
-      content?: {
-        parts?: Array<{ text?: string }>;
-      };
-    }>;
-  };
+function getErrorResponse(error: unknown, fallbackMessage: string) {
+  if (error instanceof GeminiApiError) {
+    return NextResponse.json({ ok: false, message: error.message }, { status: error.status });
+  }
 
-  return data.candidates?.[0]?.content?.parts?.map((part) => part.text ?? "").join("").trim() ?? "";
+  console.error(fallbackMessage, error);
+  return NextResponse.json({ ok: false, message: fallbackMessage }, { status: 502 });
 }
 
 export const POST = withAuth(async (request) => {
-  const apiKey = process.env.GEMINI_API_KEY;
-
-  if (!apiKey) {
-    return NextResponse.json(
-      {
-        ok: false,
-        message: "GEMINI_API_KEY가 설정되지 않았습니다. 실제 명함 분석을 사용하려면 Google AI Studio API 키를 .env.local에 추가하세요."
-      },
-      { status: 503 }
-    );
-  }
-
   const formData = await request.formData();
   const file = formData.get("file");
 
@@ -111,21 +140,27 @@ export const POST = withAuth(async (request) => {
     return NextResponse.json({ ok: false, message: "분석할 명함 이미지가 없습니다." }, { status: 400 });
   }
 
-  if (!file.type.startsWith("image/")) {
-    return NextResponse.json({ ok: false, message: "이미지 파일만 분석할 수 있습니다." }, { status: 400 });
+  const mimeType = normalizeMimeType(file.type);
+
+  if (!isSupportedImageMimeType(mimeType)) {
+    return NextResponse.json({ ok: false, message: "JPG, PNG, WEBP, GIF, HEIC, HEIF 이미지만 분석할 수 있습니다." }, { status: 400 });
+  }
+
+  if (file.size > MAX_IMAGE_BYTES) {
+    return NextResponse.json({ ok: false, message: "명함 이미지는 10MB 이하로 올려주세요." }, { status: 413 });
   }
 
   const bytes = Buffer.from(await file.arrayBuffer());
-  const imageBase64 = bytes.toString("base64");
-  const model = process.env.GEMINI_MODEL || "gemini-2.5-flash";
-
   const prompt = `
 명함 이미지를 분석해서 아래 JSON 형식으로만 응답하세요.
 모르는 값은 빈 문자열로 두고, confidence는 전체 추출 신뢰도를 0부터 1 사이 숫자로 작성하세요.
-clientType은 반드시 다음 중 하나만 사용하세요: 선사, 발주처, 협력업체, 공급업체, 정비업체, 잠재고객, 기타.
+clientType은 반드시 다음 중 하나만 사용하세요: ${clientTypes.join(", ")}.
+명함에 사업자등록번호가 있으면 businessNumber에 기록하세요.
+rawText에는 이미지에서 읽은 핵심 원문을 넣으세요.
 
 {
   "companyName": "",
+  "businessNumber": "",
   "contactName": "",
   "position": "",
   "department": "",
@@ -134,68 +169,32 @@ clientType은 반드시 다음 중 하나만 사용하세요: 선사, 발주처,
   "email": "",
   "address": "",
   "website": "",
-  "clientType": "",
+  "clientType": "기타",
+  "rawText": "",
   "confidence": 0
 }
 `;
 
-  const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-goog-api-key": apiKey
-    },
-    body: JSON.stringify({
-      contents: [
-        {
-          parts: [
-            {
-              inline_data: {
-                mime_type: file.type,
-                data: imageBase64
-              }
-            },
-            { text: prompt }
-          ]
-        }
-      ],
-      generationConfig: {
-        temperature: 0.1,
-        responseMimeType: "application/json"
-      }
-    })
-  });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    return NextResponse.json(
-      {
-        ok: false,
-        message: "명함 분석 API 호출에 실패했습니다.",
-        details: errorText
-      },
-      { status: response.status }
-    );
-  }
-
-  const data = await response.json();
-  const text = extractText(data);
-
   try {
-    const result = normalizeResult(JSON.parse(cleanJsonText(text)));
+    const responseText = await generateVisionJson({
+      data: bytes.toString("base64"),
+      mimeType,
+      prompt,
+      schema: businessCardSchema
+    });
+    const result = normalizeResult(JSON.parse(responseText));
+    const stored = await storeUpload({ bytes, directory: "business-cards", mimeType });
 
     return NextResponse.json({
       ok: true,
-      result
+      result: {
+        ...result,
+        businessCardImageUrl: stored.fileUrl,
+        businessCardFileName: file.name || stored.fileName,
+        businessCardMimeType: stored.mimeType
+      } satisfies BusinessCardResult
     });
-  } catch {
-    return NextResponse.json(
-      {
-        ok: false,
-        message: "명함 분석 결과를 읽을 수 없습니다.",
-        details: text
-      },
-      { status: 502 }
-    );
+  } catch (error) {
+    return getErrorResponse(error, "명함 분석 결과를 처리하지 못했습니다.");
   }
 }, { roles: ["CEO", "ADMIN", "OPERATIONS"], write: true });

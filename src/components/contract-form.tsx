@@ -20,10 +20,11 @@ type FormState = {
 
 type FieldErrors = Partial<Record<keyof FormState, string[]>>;
 
-export function ContractForm({ clients }: { clients: ClientOption[] }) {
+export function ContractForm({ clients, selectedClientId }: { clients: ClientOption[]; selectedClientId?: string }) {
   const router = useRouter();
+  const initialClient = clients.find((client) => client.slug === selectedClientId) ?? clients[0];
   const [form, setForm] = useState<FormState>({
-    clientName: clients[0]?.name ?? "",
+    clientName: initialClient?.name ?? "",
     projectTitle: "",
     dueDate: "",
     supplyAmount: "",

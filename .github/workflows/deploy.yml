@@ -1,19 +1,31 @@
-name: Deploy to Synology
+name: Deploy to Synology NAS
 
 on:
   push:
     branches:
       - main
+  workflow_dispatch:
+
+concurrency:
+  group: nas-production-deploy
+  cancel-in-progress: false
+
+permissions:
+  contents: read
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - name: Configure SSH
         env:
           NAS_SSH_KEY: ${{ secrets.NAS_SSH_KEY }}
           NAS_KNOWN_HOSTS: ${{ secrets.NAS_KNOWN_HOSTS }}
         run: |
+          set -euo pipefail
+          test -n "$NAS_SSH_KEY" || { echo "NAS_SSH_KEY is not configured" >&2; exit 1; }
+          test -n "$NAS_KNOWN_HOSTS" || { echo "NAS_KNOWN_HOSTS is not configured" >&2; exit 1; }
           install -d -m 700 "$HOME/.ssh"
           printf '%s\n' "$NAS_SSH_KEY" > "$HOME/.ssh/nas_deploy_key"
           chmod 600 "$HOME/.ssh/nas_deploy_key"
@@ -25,15 +37,57 @@ jobs:
           NAS_PORT: ${{ secrets.NAS_PORT }}
           NAS_USER: ${{ secrets.NAS_USER }}
         run: |
+          set -euo pipefail
+          test -n "$NAS_HOST" || { echo "NAS_HOST is not configured" >&2; exit 1; }
+          test -n "$NAS_USER" || { echo "NAS_USER is not configured" >&2; exit 1; }
           ssh -i "$HOME/.ssh/nas_deploy_key" \
+            -o BatchMode=yes \
+            -o ConnectTimeout=20 \
+            -o ServerAliveInterval=30 \
+            -o ServerAliveCountMax=10 \
             -p "${NAS_PORT:-2235}" \
             "$NAS_USER@$NAS_HOST" \
             'set -eu
              export PATH="/usr/local/bin:/var/packages/ContainerManager/target/usr/bin:/var/packages/Docker/target/usr/bin:$PATH"
-             cd /volume1/docker/kudalabs-erp
-             find .git/refs -type d -name "@eaDir" -prune -exec rm -rf {} \;
-             find . \( -path "./.git" -o -path "./postgres-data" -o -path "./redis-data" -o -path "./uploads" -o -path "./backups" \) -prune -o -type d -name "@eaDir" -prune -exec rm -rf {} \;
-             git pull --ff-only origin main
-             find . \( -path "./.git" -o -path "./postgres-data" -o -path "./redis-data" -o -path "./uploads" -o -path "./backups" \) -prune -o -type d -name "@eaDir" -prune -exec rm -rf {} \;
-             sudo -n /usr/local/bin/docker compose -p kuda-erp rm -f migrate bootstrap || true
-             sudo -n /usr/local/bin/docker compose -p kuda-erp up -d --build --remove-orphans'
+             APP_DIR="/volume1/docker/kudalabs-erp"
+             cd "$APP_DIR"
+             test -d .git
+             test "$(git branch --show-current)" = "main"
+             if [ -n "$(git status --porcelain)" ]; then
+               echo "NAS working tree is not clean; commit or stash direct NAS edits before deploying from GitHub." >&2
+               git status --short >&2
+               exit 1
+             fi
+             GIT_TERMINAL_PROMPT=0 git pull --ff-only origin main
+
+             if [ -x /usr/local/bin/docker ]; then
+               DOCKER_BIN="/usr/local/bin/docker"
+             else
+               DOCKER_BIN="$(command -v docker 2>/dev/null || true)"
+             fi
+             test -n "$DOCKER_BIN"
+
+             docker_exec() {
+               if [ "$(id -u)" -eq 0 ]; then
+                 "$DOCKER_BIN" "$@"
+               else
+                 sudo -n "$DOCKER_BIN" "$@"
+               fi
+             }
+
+             compose() {
+               docker_exec compose -p kudalabs-erp "$@"
+             }
+
+             compose config >/dev/null
+             compose rm -f migrate bootstrap || true
+             compose up -d --build --remove-orphans
+             compose ps
+
+             for container in kudalabs-erp-web kudalabs-erp-worker; do
+               state="$(docker_exec inspect -f "{{.State.Status}}" "$container")"
+               test "$state" = "running" || {
+                 echo "$container is not running (state: $state)" >&2
+                 exit 1
+               }
+             done'

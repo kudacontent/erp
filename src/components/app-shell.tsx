@@ -77,7 +77,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             className="absolute inset-0 bg-[#092235]/50"
             onClick={() => setMobileMenuOpen(false)}
           />
-          <aside id="mobile-navigation" className="relative z-10 flex h-full w-[min(88vw,20rem)] flex-col bg-[#092235] px-5 py-6 shadow-2xl">
+          <aside id="mobile-navigation" className="relative z-10 flex h-full w-[min(88vw,20rem)] flex-col bg-[#092235] px-5 py-6 shadow-2xl print:hidden">
             <div className="flex items-start justify-between gap-3">
               <Link href="/" className="block" onClick={() => setMobileMenuOpen(false)}>
                 <p className="text-sm font-semibold text-[#7dd3fc]">KUDALABS</p>
@@ -105,7 +105,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                   <p className="mb-2 px-3 text-[11px] font-bold uppercase tracking-[0.16em] text-[#7fa8bb]">{group.label}</p>
                   <div className="space-y-1">
                     {group.items.map((module) => {
-                      const active = pathname === module.href || pathname.startsWith(`${module.href}/`);
+                      const modulePath = module.href.split("#")[0];
+                      const active = pathname === modulePath || pathname.startsWith(`${modulePath}/`);
 
                       return (
                         <Link
@@ -130,7 +131,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </div>
       ) : null}
 
-      <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 border-r border-[#0f3f5e] bg-[#092235] px-5 py-6 lg:block">
+      <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 border-r border-[#0f3f5e] bg-[#092235] px-5 py-6 lg:block print:hidden">
         <Link href="/" className="block">
           <p className="text-sm font-semibold text-[#7dd3fc]">KUDALABS</p>
           <h1 className="mt-1 text-2xl font-bold text-white">사내 운영 ERP</h1>
@@ -142,7 +143,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               <p className="mb-2 px-3 text-[11px] font-bold uppercase tracking-[0.16em] text-[#7fa8bb]">{group.label}</p>
               <div className="space-y-1">
                 {group.items.map((module) => {
-                  const active = pathname === module.href || pathname.startsWith(`${module.href}/`);
+                  const modulePath = module.href.split("#")[0];
+                  const active = pathname === modulePath || pathname.startsWith(`${modulePath}/`);
 
                   return (
                     <Link
@@ -167,7 +169,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       </aside>
 
       <div className="min-w-0 lg:pl-64">
-        <header className="sticky top-0 z-20 border-b border-line bg-white/95 px-4 py-3 backdrop-blur sm:px-8 sm:py-4">
+        <header className="sticky top-0 z-20 border-b border-line bg-white/95 px-4 py-3 backdrop-blur sm:px-8 sm:py-4 print:hidden">
           <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-3">
               <button
