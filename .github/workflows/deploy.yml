@@ -51,6 +51,7 @@ jobs:
              export PATH="/usr/local/bin:/var/packages/ContainerManager/target/usr/bin:/var/packages/Docker/target/usr/bin:$PATH"
              APP_DIR="/volume1/docker/kudalabs-erp"
              cd "$APP_DIR"
+             find "$APP_DIR/.git" -type d -name "@eaDir" -prune -exec rm -rf {} +
              test -d .git
              test "$(git branch --show-current)" = "main"
              if [ -n "$(git status --porcelain)" ]; then
