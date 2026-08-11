@@ -168,7 +168,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </nav>
       </aside>
 
-      <div className="min-w-0 lg:pl-64">
+      <div className="app-shell-content min-w-0 lg:pl-64">
         <header className="sticky top-0 z-20 border-b border-line bg-white/95 px-4 py-3 backdrop-blur sm:px-8 sm:py-4 print:hidden">
           <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-3">
