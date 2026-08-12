@@ -4,13 +4,15 @@ import { useMemo, useState } from "react";
 import { Search } from "lucide-react";
 
 type CalendarDay = {
+  key: string;
   day: string;
   muted: boolean;
   today?: boolean;
-  events: string[];
+  events: Array<{ id: string; title: string; category: string; isAllDay: boolean }>;
 };
 
 type TodayEvent = {
+  id: string;
   time: string;
   title: string;
   category: string;
@@ -22,26 +24,6 @@ type CalendarCategory = {
   count: number;
   color: string;
 };
-
-function inferCategory(title: string) {
-  if (["정산", "입금", "세금계산서"].some((word) => title.includes(word))) {
-    return "정산";
-  }
-
-  if (["거래처", "견적", "선체", "협력사"].some((word) => title.includes(word))) {
-    return "거래처";
-  }
-
-  if (title.includes("지출")) {
-    return "지출";
-  }
-
-  if (title.includes("보고")) {
-    return "보고";
-  }
-
-  return "내부";
-}
 
 export function FilterableCalendar({
   calendarDays,
@@ -61,9 +43,8 @@ export function FilterableCalendar({
     return calendarDays.map((day) => ({
       ...day,
       events: day.events.filter((event) => {
-        const category = inferCategory(event);
-        const matchesCategory = selectedCategory === "전체" || category === selectedCategory;
-        const matchesQuery = !normalizedQuery || `${event} ${category}`.toLowerCase().includes(normalizedQuery);
+        const matchesCategory = selectedCategory === "전체" || event.category === selectedCategory;
+        const matchesQuery = !normalizedQuery || `${event.title} ${event.category}`.toLowerCase().includes(normalizedQuery);
 
         return matchesCategory && matchesQuery;
       })
@@ -111,7 +92,7 @@ export function FilterableCalendar({
           ))}
           {filteredDays.map((day) => (
             <div
-              key={day.day}
+              key={day.key}
               className={[
                 "min-h-28 border-b border-r border-line bg-white p-3",
                 day.today ? "bg-[#e8f5fb]" : "",
@@ -124,8 +105,8 @@ export function FilterableCalendar({
               </div>
               <div className="space-y-1">
                 {day.events.slice(0, 3).map((event) => (
-                  <div key={event} className="truncate rounded-sm bg-paper px-2 py-1 text-xs text-steel">
-                    {event}
+                  <div key={event.id} className="truncate rounded-sm bg-paper px-2 py-1 text-xs text-steel">
+                    {event.title}
                   </div>
                 ))}
               </div>
@@ -141,7 +122,7 @@ export function FilterableCalendar({
           <div className="space-y-4">
             {filteredTodayEvents.length ? (
               filteredTodayEvents.map((event) => (
-                <div key={`${event.time}-${event.title}`} className="flex gap-3">
+                <div key={event.id} className="flex gap-3">
                   <div className="w-12 shrink-0 text-sm font-bold text-marine">{event.time}</div>
                   <div className="min-w-0 border-l border-line pl-3">
                     <p className="truncate text-sm font-medium text-ink">{event.title}</p>
