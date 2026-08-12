@@ -355,10 +355,24 @@ model CalendarEvent {
   meeting       Meeting?
   startTime     DateTime
   endTime       DateTime
+  isAllDay      Boolean          @default(false)
   description   String?
   syncStatus    String           @default("LOCAL_ONLY")
   createdAt     DateTime         @default(now())
   updatedAt     DateTime         @updatedAt
+}
+
+model GoogleCalendarConnection {
+  id                    String    @id @default("primary")
+  accountEmail          String
+  calendarId            String    @default("primary")
+  accessTokenEncrypted  String?
+  refreshTokenEncrypted String
+  tokenExpiresAt        DateTime?
+  lastSyncedAt          DateTime?
+  lastError             String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
 }
 
 model Attachment {

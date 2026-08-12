@@ -3,7 +3,7 @@ import type { NextRequest } from "next/server";
 
 const SESSION_COOKIE_NAME = "kudalabs_session";
 
-const publicPaths = new Set(["/login", "/api/auth/login", "/api/auth/logout", "/api/health"]);
+const publicPaths = new Set(["/login", "/api/auth/login", "/api/auth/logout", "/api/calendar/google/callback", "/api/health"]);
 
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
