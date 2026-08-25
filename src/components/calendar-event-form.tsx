@@ -27,9 +27,9 @@ function toIso(value: string) {
   return Number.isNaN(date.getTime()) ? new Date().toISOString() : date.toISOString();
 }
 
-export function CalendarEventForm({ initialEvent }: { initialEvent?: CalendarEventFormValue | null }) {
+export function CalendarEventForm({ initialEvent, autoOpen = true }: { initialEvent?: CalendarEventFormValue | null; autoOpen?: boolean }) {
   const router = useRouter();
-  const [open, setOpen] = useState(Boolean(initialEvent));
+  const [open, setOpen] = useState(Boolean(initialEvent) && autoOpen);
   const [title, setTitle] = useState(initialEvent?.title ?? "");
   const [category, setCategory] = useState(initialEvent?.category ?? "내부");
   const [startTime, setStartTime] = useState(toDatetimeLocal(initialEvent?.startTime ?? new Date()));
@@ -40,7 +40,7 @@ export function CalendarEventForm({ initialEvent }: { initialEvent?: CalendarEve
   const [message, setMessage] = useState("");
 
   useEffect(() => {
-    setOpen(Boolean(initialEvent));
+    setOpen(Boolean(initialEvent) && autoOpen);
     setTitle(initialEvent?.title ?? "");
     setCategory(initialEvent?.category ?? "내부");
     setStartTime(toDatetimeLocal(initialEvent?.startTime ?? new Date()));
@@ -48,7 +48,7 @@ export function CalendarEventForm({ initialEvent }: { initialEvent?: CalendarEve
     setIsAllDay(initialEvent?.isAllDay ?? false);
     setDescription(initialEvent?.description ?? "");
     setMessage("");
-  }, [initialEvent?.id]);
+  }, [autoOpen, initialEvent?.id]);
 
   function close() {
     if (busy) return;

@@ -58,6 +58,23 @@ type GoogleCalendarListResponse = {
   error?: { code?: number; message?: string };
 };
 
+const EXCLUDED_GOOGLE_CALENDAR_ID_PARTS = [
+  "#holiday@group.v.calendar.google.com",
+  "#contacts@group.v.calendar.google.com"
+] as const;
+
+const EXCLUDED_GOOGLE_CALENDAR_SUMMARY_WORDS = [
+  "공휴일",
+  "기념일",
+  "생일",
+  "holiday",
+  "holidays",
+  "anniversary",
+  "anniversaries",
+  "birthday",
+  "birthdays"
+] as const;
+
 export type GoogleCalendarStatus = {
   configured: boolean;
   targetEmail: string;
@@ -399,6 +416,16 @@ function externalGoogleEventId(calendarId: string, eventId: string) {
   return `${calendarId}:${eventId}`;
 }
 
+function isExcludedGoogleCalendarId(value: string) {
+  const normalized = value.trim().toLowerCase();
+  return EXCLUDED_GOOGLE_CALENDAR_ID_PARTS.some((part) => normalized.includes(part));
+}
+
+function isExcludedGoogleCalendar(calendar: GoogleCalendarListEntry) {
+  const summary = calendar.summary?.trim().toLowerCase() ?? "";
+  return Boolean(calendar.id && (isExcludedGoogleCalendarId(calendar.id) || EXCLUDED_GOOGLE_CALENDAR_SUMMARY_WORDS.some((word) => summary.includes(word))));
+}
+
 export async function syncGoogleCalendar() {
   const connection = await prisma.googleCalendarConnection.findUnique({ where: { id: CONNECTION_ID } });
   if (!connection) {
@@ -411,7 +438,7 @@ export async function syncGoogleCalendar() {
 
   try {
     const accessToken = await getAccessToken(connection);
-    const calendars = await listGoogleCalendars(accessToken, connection.calendarId);
+    const calendars = (await listGoogleCalendars(accessToken, connection.calendarId)).filter((calendar) => !isExcludedGoogleCalendar(calendar));
     const events: Array<{ calendarId: string; event: GoogleEvent }> = [];
 
     for (const calendar of calendars) {
@@ -452,6 +479,13 @@ export async function syncGoogleCalendar() {
     const googleEventIds = activeEvents.map(({ calendarId, event }) => externalGoogleEventId(calendarId, event.id as string));
 
     await prisma.$transaction(async (transaction) => {
+      await transaction.calendarEvent.deleteMany({
+        where: {
+          syncStatus: "GOOGLE_SYNCED",
+          OR: EXCLUDED_GOOGLE_CALENDAR_ID_PARTS.map((part) => ({ googleEventId: { contains: part } }))
+        }
+      });
+
       for (const { calendarId, event } of activeEvents) {
         const start = getGoogleDateTime(event.start);
         const end = getGoogleDateTime(event.end);

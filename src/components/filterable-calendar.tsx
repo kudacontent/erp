@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { ChevronLeft, ChevronRight, Search } from "lucide-react";
 
 type CalendarDay = {
@@ -42,17 +43,22 @@ export function FilterableCalendar({
   calendarCategories,
   monthEvents,
   monthLabel,
+  monthValue,
   previousMonth,
-  nextMonth
+  nextMonth,
+  selectedEventId
 }: {
   calendarDays: CalendarDay[];
   todayEvents: TodayEvent[];
   calendarCategories: CalendarCategory[];
   monthEvents: CalendarMonthEvent[];
   monthLabel: string;
+  monthValue: string;
   previousMonth: string;
   nextMonth: string;
+  selectedEventId: string | null;
 }) {
+  const router = useRouter();
   const [query, setQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("전체");
 
@@ -100,7 +106,17 @@ export function FilterableCalendar({
               <h3 className="text-lg font-bold text-ink">일정 현황</h3>
               <p className="mt-1 text-sm font-medium text-steel">{monthLabel} · 표시 일정 {visibleEventCount}건</p>
             </div>
-            <div className="flex items-center gap-1 self-start rounded-md border border-line bg-paper p-1 sm:self-auto">
+            <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
+              <input
+                type="month"
+                aria-label="년도와 월 선택"
+                value={monthValue}
+                onChange={(event) => {
+                  if (event.target.value) router.push(`/calendar?month=${event.target.value}`);
+                }}
+                className="rounded-md border border-line bg-paper px-3 py-2 text-sm font-bold text-ink outline-none focus:border-marine"
+              />
+              <div className="flex items-center gap-1 rounded-md border border-line bg-paper p-1">
               <Link
                 href={`/calendar?month=${previousMonth}`}
                 aria-label="이전 달"
@@ -118,6 +134,7 @@ export function FilterableCalendar({
               >
                 <ChevronRight className="h-4 w-4" />
               </Link>
+              </div>
             </div>
           </div>
           <label className="flex w-full min-w-0 items-center gap-2 rounded-md border border-line bg-paper px-3 py-2 text-sm text-steel">
@@ -155,18 +172,16 @@ export function FilterableCalendar({
               <div className="space-y-1">
                 {day.events.slice(0, 3).map((event) => {
                   const eventContent = (
-                    <span className="flex min-w-0 flex-col rounded-sm bg-paper px-2 py-1 text-xs text-steel">
+                    <span className={["flex min-w-0 flex-col rounded-sm px-2 py-1 text-xs text-steel", event.id === selectedEventId ? "bg-[#d8f0fa] ring-1 ring-marine" : "bg-paper"].join(" ")}>
                       <span className="text-[10px] font-bold text-marine">{event.time}</span>
                       <span className="truncate">{event.title}</span>
                     </span>
                   );
 
-                  return event.syncStatus === "LOCAL_ONLY" ? (
-                    <Link key={event.id} href={`/calendar?month=${day.key.slice(0, 7)}&eventId=${encodeURIComponent(event.id)}`} className="block hover:opacity-75">
+                  return (
+                    <Link key={event.id} href={`/calendar?month=${day.key.slice(0, 7)}&eventId=${encodeURIComponent(event.id)}#selected-event`} className="block hover:opacity-75">
                       {eventContent}
                     </Link>
-                  ) : (
-                    <div key={event.id}>{eventContent}</div>
                   );
                 })}
                 {day.events.length > 3 ? <p className="px-2 text-xs font-bold text-marine">+{day.events.length - 3}건 더보기</p> : null}
@@ -186,14 +201,18 @@ export function FilterableCalendar({
           <div className="max-h-96 space-y-3 overflow-y-auto pr-1">
             {filteredMonthEvents.length ? (
               filteredMonthEvents.map((event) => (
-                <div key={event.id} className="rounded-md bg-paper px-3 py-3">
+                <Link
+                  key={event.id}
+                  href={`/calendar?month=${monthValue}&eventId=${encodeURIComponent(event.id)}#selected-event`}
+                  className={["block rounded-md px-3 py-3 hover:opacity-75", event.id === selectedEventId ? "bg-[#d8f0fa] ring-1 ring-marine" : "bg-paper"].join(" ")}
+                >
                   <div className="flex items-center justify-between gap-3">
                     <span className="text-xs font-bold text-marine">{event.date} · {event.time}</span>
                     <span className="shrink-0 rounded-md bg-white px-2 py-1 text-xs text-steel">{event.category}</span>
                   </div>
                   <p className="mt-2 truncate text-sm font-medium text-ink">{event.title}</p>
                   <p className="mt-1 text-xs text-steel">{event.syncStatus === "GOOGLE_SYNCED" ? "Google Calendar" : "ERP"}</p>
-                </div>
+                </Link>
               ))
             ) : (
               <p className="rounded-md bg-paper px-3 py-4 text-sm font-medium text-steel">조건에 맞는 일정이 없습니다.</p>

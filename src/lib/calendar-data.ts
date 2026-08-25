@@ -43,15 +43,6 @@ export type CalendarCategory = {
   color: string;
 };
 
-export type CalendarUpcomingEvent = {
-  id: string;
-  date: string;
-  month: string;
-  title: string;
-  type: string;
-  syncStatus: string;
-};
-
 export type CalendarMonthEvent = {
   id: string;
   date: string;
@@ -59,13 +50,6 @@ export type CalendarMonthEvent = {
   title: string;
   category: string;
   syncStatus: string;
-};
-
-export type CalendarSyncedEvent = {
-  id: string;
-  date: string;
-  title: string;
-  type: string;
 };
 
 export type CalendarStat = {
@@ -201,12 +185,6 @@ export function buildCalendarViewData(events: CalendarEventRecord[], now = new D
       syncStatus: event.syncStatus
     }));
 
-  const upcomingEvents: CalendarUpcomingEvent[] = events
-    .filter((event) => dateKey(event.startTime) >= todayKey)
-    .sort((left, right) => left.startTime.getTime() - right.startTime.getTime())
-    .slice(0, 12)
-    .map((event) => ({ id: event.id, date: formatShortDate(event.startTime), month: getCalendarMonthParam(event.startTime), title: event.title, type: event.category, syncStatus: event.syncStatus }));
-
   const monthEventList: CalendarMonthEvent[] = monthEvents.map((event) => ({
     id: event.id,
     date: formatShortDate(event.startTime),
@@ -215,12 +193,6 @@ export function buildCalendarViewData(events: CalendarEventRecord[], now = new D
     category: event.category,
     syncStatus: event.syncStatus
   }));
-
-  const syncedEvents: CalendarSyncedEvent[] = events
-    .filter((event) => event.syncStatus === "GOOGLE_SYNCED")
-    .sort((left, right) => right.startTime.getTime() - left.startTime.getTime())
-    .slice(0, 12)
-    .map((event) => ({ id: event.id, date: formatShortDate(event.startTime), title: event.title, type: event.category }));
 
   const countFor = (category: string) => categoryCounts.get(category) ?? 0;
   const calendarStats: CalendarStat[] = [
@@ -235,10 +207,9 @@ export function buildCalendarViewData(events: CalendarEventRecord[], now = new D
     calendarDays,
     todayEvents,
     calendarCategories,
-    upcomingEvents,
-    syncedEvents,
     monthEvents: monthEventList,
     monthLabel: `${viewParts.year}년 ${viewParts.month}월`,
+    monthValue: viewMonthKey,
     previousMonth: shiftCalendarMonth(viewMonthKey, -1),
     nextMonth: shiftCalendarMonth(viewMonthKey, 1)
   };
