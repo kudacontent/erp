@@ -1,6 +1,6 @@
 import { Bot, CalendarPlus, CheckSquare, MessageSquareText, Users } from "lucide-react";
 import { FilterableMeetingsTable } from "@/components/filterable-meetings-table";
-import { MeetingRecorder } from "@/components/meeting-recorder";
+import { MeetingRecorder, type InitialMeeting } from "@/components/meeting-recorder";
 import { getClientsForList } from "@/lib/clients-service";
 import { prisma } from "@/lib/prisma";
 
@@ -14,7 +14,7 @@ const statusLabels = {
   COMPLETED: "완료"
 } as const;
 
-export default async function MeetingsPage({ searchParams }: { searchParams: Promise<{ clientId?: string }> }) {
+export default async function MeetingsPage({ searchParams }: { searchParams: Promise<{ clientId?: string; meetingId?: string }> }) {
   const params = await searchParams;
   const [clients, records] = await Promise.all([
     getClientsForList(),
@@ -25,7 +25,7 @@ export default async function MeetingsPage({ searchParams }: { searchParams: Pro
     })
   ]);
   const meetings = records.map((meeting) => ({
-    id: meeting.id.slice(0, 8),
+    id: meeting.id,
     title: meeting.title,
     type: meeting.meetingType,
     client: meeting.client?.name || "내부 회의",
@@ -34,6 +34,19 @@ export default async function MeetingsPage({ searchParams }: { searchParams: Pro
     status: statusLabels[meeting.status],
     minutes: meeting.minutes ? "회의록 있음" : "회의록 없음"
   }));
+  const selectedMeetingRecord = params.meetingId ? records.find((meeting) => meeting.id === params.meetingId) : null;
+  const selectedMeeting: InitialMeeting | null = selectedMeetingRecord
+    ? {
+        id: selectedMeetingRecord.id,
+        title: selectedMeetingRecord.title,
+        meetingType: selectedMeetingRecord.meetingType,
+        clientId: selectedMeetingRecord.clientId,
+        location: selectedMeetingRecord.location,
+        startedAt: selectedMeetingRecord.startedAt.toISOString(),
+        agenda: selectedMeetingRecord.agenda,
+        minutes: selectedMeetingRecord.minutes
+      }
+    : null;
   const now = new Date();
   const startOfWeek = new Date(now);
   startOfWeek.setDate(now.getDate() - ((now.getDay() + 6) % 7));
@@ -68,12 +81,11 @@ export default async function MeetingsPage({ searchParams }: { searchParams: Pro
         </a>
       </section>
 
-      <div id="meeting-recorder">
-        <MeetingRecorder
-          clients={clients.map((client) => ({ id: client.slug, name: client.name }))}
-          selectedClientId={params.clientId}
-        />
-      </div>
+      <MeetingRecorder
+        clients={clients.map((client) => ({ id: client.slug, name: client.name }))}
+        selectedClientId={params.clientId}
+        initialMeeting={selectedMeeting}
+      />
 
       <section className="mb-6 grid gap-4 md:grid-cols-4">
         {meetingStats.map((stat) => (

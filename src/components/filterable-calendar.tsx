@@ -8,7 +8,7 @@ type CalendarDay = {
   day: string;
   muted: boolean;
   today?: boolean;
-  events: Array<{ id: string; title: string; category: string; isAllDay: boolean }>;
+  events: Array<{ id: string; title: string; category: string; isAllDay: boolean; syncStatus: string }>;
 };
 
 type TodayEvent = {
@@ -17,6 +17,7 @@ type TodayEvent = {
   title: string;
   category: string;
   link: string;
+  syncStatus: string;
 };
 
 type CalendarCategory = {

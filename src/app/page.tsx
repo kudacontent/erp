@@ -1,4 +1,5 @@
 import { Bot, ChevronLeft, ChevronRight } from "lucide-react";
+import Link from "next/link";
 import {
   calendarDays,
   dashboardSchedule,
@@ -36,7 +37,7 @@ export default function Home() {
 
         <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {heroStats.map((stat) => (
-            <div key={stat.label} className="min-h-32 rounded-md bg-white p-5 shadow-[0_16px_40px_rgba(9,34,53,0.12)]">
+            <Link key={stat.label} href={stat.href} className="min-h-32 rounded-md bg-white p-5 shadow-[0_16px_40px_rgba(9,34,53,0.12)] transition hover:-translate-y-0.5 hover:shadow-[0_18px_44px_rgba(9,34,53,0.18)] focus:outline-none focus:ring-2 focus:ring-white">
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <p className="text-sm font-medium text-steel">{stat.label}</p>
@@ -47,7 +48,7 @@ export default function Home() {
                   <stat.icon className="h-7 w-7" />
                 </span>
               </div>
-            </div>
+            </Link>
           ))}
         </div>
       </section>
@@ -61,7 +62,7 @@ export default function Home() {
             </div>
             <div className="grid auto-rows-fr gap-4 sm:grid-cols-2 lg:grid-cols-4">
               {operationOverview.map((item) => (
-                <div key={item.title} className="h-full rounded-md border border-line bg-[#f8fbfd] p-4">
+                <Link key={item.title} href={item.href} className="h-full rounded-md border border-line bg-[#f8fbfd] p-4 transition hover:border-marine hover:bg-white focus:outline-none focus:ring-2 focus:ring-marine">
                   <p className="mb-4 font-bold text-ink">{item.title}</p>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
@@ -73,7 +74,7 @@ export default function Home() {
                       <p className="mt-1 text-xs text-steel">{item.secondaryLabel}</p>
                     </div>
                   </div>
-                </div>
+                </Link>
               ))}
             </div>
           </section>
@@ -92,9 +93,9 @@ export default function Home() {
                   </div>
                   <div className="space-y-2">
                     {group.items.map((item) => (
-                      <div key={item} className="rounded-md bg-white px-3 py-2 text-sm font-medium text-steel">
-                        {item}
-                      </div>
+                      <Link key={item.label} href={item.href} className="block rounded-md bg-white px-3 py-2 text-sm font-medium text-steel transition hover:bg-[#e8f5fb] hover:text-marine focus:outline-none focus:ring-2 focus:ring-marine">
+                        {item.label}
+                      </Link>
                     ))}
                   </div>
                 </div>

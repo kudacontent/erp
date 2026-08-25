@@ -8,6 +8,7 @@ export type CalendarEventRecord = {
   endTime: Date;
   isAllDay: boolean;
   description: string | null;
+  syncStatus: string;
 };
 
 export type CalendarEventSummary = {
@@ -15,6 +16,7 @@ export type CalendarEventSummary = {
   title: string;
   category: string;
   isAllDay: boolean;
+  syncStatus: string;
 };
 
 export type CalendarDay = {
@@ -31,6 +33,7 @@ export type CalendarTodayEvent = {
   title: string;
   category: string;
   link: string;
+  syncStatus: string;
 };
 
 export type CalendarCategory = {
@@ -40,6 +43,14 @@ export type CalendarCategory = {
 };
 
 export type CalendarUpcomingEvent = {
+  id: string;
+  date: string;
+  title: string;
+  type: string;
+  syncStatus: string;
+};
+
+export type CalendarSyncedEvent = {
   id: string;
   date: string;
   title: string;
@@ -105,7 +116,7 @@ export function buildCalendarViewData(events: CalendarEventRecord[], now = new D
   for (const event of monthEvents) {
     const key = dateKey(event.startTime);
     const summaries = eventsByDate.get(key) ?? [];
-    summaries.push({ id: event.id, title: event.title, category: event.category, isAllDay: event.isAllDay });
+    summaries.push({ id: event.id, title: event.title, category: event.category, isAllDay: event.isAllDay, syncStatus: event.syncStatus });
     eventsByDate.set(key, summaries);
   }
 
@@ -150,12 +161,19 @@ export function buildCalendarViewData(events: CalendarEventRecord[], now = new D
       time: formatTime(event.startTime, event.isAllDay),
       title: event.title,
       category: event.category,
-      link: "Google Calendar"
+      link: event.syncStatus === "GOOGLE_SYNCED" ? "Google Calendar" : "ERP",
+      syncStatus: event.syncStatus
     }));
 
   const upcomingEvents: CalendarUpcomingEvent[] = events
     .filter((event) => dateKey(event.startTime) >= todayKey)
     .sort((left, right) => left.startTime.getTime() - right.startTime.getTime())
+    .slice(0, 12)
+    .map((event) => ({ id: event.id, date: formatShortDate(event.startTime), title: event.title, type: event.category, syncStatus: event.syncStatus }));
+
+  const syncedEvents: CalendarSyncedEvent[] = events
+    .filter((event) => event.syncStatus === "GOOGLE_SYNCED")
+    .sort((left, right) => right.startTime.getTime() - left.startTime.getTime())
     .slice(0, 12)
     .map((event) => ({ id: event.id, date: formatShortDate(event.startTime), title: event.title, type: event.category }));
 
@@ -167,5 +185,5 @@ export function buildCalendarViewData(events: CalendarEventRecord[], now = new D
     { label: "인사/내부", value: `${countFor("내부")}건` }
   ];
 
-  return { calendarStats, calendarDays, todayEvents, calendarCategories, upcomingEvents };
+  return { calendarStats, calendarDays, todayEvents, calendarCategories, upcomingEvents, syncedEvents };
 }

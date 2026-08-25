@@ -1,6 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import { Pencil, Trash2 } from "lucide-react";
 import { ResponsiveFilterBar } from "@/components/responsive-filter-bar";
 
 type MeetingListItem = {
@@ -33,8 +35,25 @@ export function FilterableMeetingsTable({
   meetings: MeetingListItem[];
   statusOptions: string[];
 }) {
+  const router = useRouter();
   const [query, setQuery] = useState("");
   const [selectedStatus, setSelectedStatus] = useState("전체");
+  const [busyId, setBusyId] = useState<string | null>(null);
+
+  async function deleteMeeting(meeting: MeetingListItem) {
+    if (!window.confirm(`“${meeting.title}” 회의록을 삭제할까요? 녹음 파일도 함께 삭제됩니다.`)) return;
+    setBusyId(meeting.id);
+    try {
+      const response = await fetch(`/api/meetings/${meeting.id}`, { method: "DELETE" });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.message ?? "회의록을 삭제하지 못했습니다.");
+      router.refresh();
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : "회의록을 삭제하지 못했습니다.");
+    } finally {
+      setBusyId(null);
+    }
+  }
 
   const filteredMeetings = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
@@ -81,6 +100,7 @@ export function FilterableMeetingsTable({
               <th className="px-4 py-3 font-medium">시간</th>
               <th className="px-4 py-3 font-medium">참석</th>
               <th className="px-4 py-3 font-medium">상태</th>
+              <th className="px-4 py-3 text-right font-medium">관리</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-line bg-white">
@@ -99,11 +119,17 @@ export function FilterableMeetingsTable({
                       {meeting.status}
                     </span>
                   </td>
+                  <td className="px-4 py-4 text-right">
+                    <div className="inline-flex items-center gap-2">
+                      <a href={`/meetings?meetingId=${encodeURIComponent(meeting.id)}#meeting-recorder`} className="inline-flex items-center gap-1 rounded-md border border-line px-2 py-1 text-xs font-bold text-steel hover:border-marine hover:text-marine"><Pencil className="h-3 w-3" /> 수정</a>
+                      <button type="button" onClick={() => void deleteMeeting(meeting)} disabled={busyId === meeting.id} className="inline-flex items-center gap-1 rounded-md border border-line px-2 py-1 text-xs font-bold text-[#b42318] hover:bg-[#fff4ed] disabled:opacity-50"><Trash2 className="h-3 w-3" /> 삭제</button>
+                    </div>
+                  </td>
                 </tr>
               ))
             ) : (
               <tr>
-                <td colSpan={5} className="px-4 py-10 text-center text-sm font-medium text-steel">
+                <td colSpan={6} className="px-4 py-10 text-center text-sm font-medium text-steel">
                   조건에 맞는 회의가 없습니다.
                 </td>
               </tr>
@@ -135,6 +161,10 @@ export function FilterableMeetingsTable({
               </div>
             </div>
             <p className="mt-3 truncate text-xs text-steel">회의록: {meeting.minutes}</p>
+            <div className="mt-3 flex items-center gap-2">
+              <a href={`/meetings?meetingId=${encodeURIComponent(meeting.id)}#meeting-recorder`} className="inline-flex items-center gap-1 rounded-md border border-line bg-white px-3 py-2 text-xs font-bold text-steel"><Pencil className="h-3 w-3" /> 수정</a>
+              <button type="button" onClick={() => void deleteMeeting(meeting)} disabled={busyId === meeting.id} className="inline-flex items-center gap-1 rounded-md border border-line bg-white px-3 py-2 text-xs font-bold text-[#b42318] disabled:opacity-50"><Trash2 className="h-3 w-3" /> 삭제</button>
+            </div>
           </div>
         )) : (
           <div className="rounded-md border border-line bg-paper px-4 py-10 text-center text-sm font-medium text-steel">

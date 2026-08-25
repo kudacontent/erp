@@ -86,30 +86,30 @@ export const modules = [
 ];
 
 export const heroStats = [
-  { label: "등록 거래처", value: "0", sub: "신규 0", icon: ContactRound },
-  { label: "진행 계약", value: "0", sub: "검토 0", icon: HandCoins },
-  { label: "오늘 일정", value: "0", sub: "회의 0", icon: CalendarDays },
-  { label: "검수 대기", value: "0", sub: "명함·영수증 0", icon: ScanText },
-  { label: "지출 승인", value: "0", sub: "증빙 0", icon: ReceiptText },
-  { label: "보고 생성", value: "0", sub: "예정 없음", icon: FileText }
+  { label: "등록 거래처", value: "0", sub: "신규 0", icon: ContactRound, href: "/clients" },
+  { label: "진행 계약", value: "0", sub: "검토 0", icon: HandCoins, href: "/contracts" },
+  { label: "오늘 일정", value: "0", sub: "회의 0", icon: CalendarDays, href: "/calendar" },
+  { label: "검수 대기", value: "0", sub: "명함·영수증 0", icon: ScanText, href: "/clients/business-card" },
+  { label: "지출 승인", value: "0", sub: "증빙 0", icon: ReceiptText, href: "/expenses" },
+  { label: "보고 생성", value: "0", sub: "예정 없음", icon: FileText, href: "/reports/daily" }
 ];
 
 export const operationOverview = [
-  { title: "거래처", primary: "0", primaryLabel: "등록 업체", secondary: "0", secondaryLabel: "신규 담당자" },
-  { title: "계약/매출", primary: "0", primaryLabel: "진행 계약", secondary: "0", secondaryLabel: "발행 대기" },
-  { title: "지출", primary: "0", primaryLabel: "이번 달 지출", secondary: "0", secondaryLabel: "승인 대기" },
-  { title: "회의", primary: "0", primaryLabel: "이번 주 회의", secondary: "0", secondaryLabel: "후속 조치" },
-  { title: "캘린더", primary: "0", primaryLabel: "오늘 일정", secondary: "0", secondaryLabel: "이번 주 일정" },
-  { title: "인사", primary: "0", primaryLabel: "등록 직원", secondary: "0", secondaryLabel: "확인 필요" },
-  { title: "보고", primary: "0", primaryLabel: "오늘 보고", secondary: "0", secondaryLabel: "검토 항목" },
-  { title: "문서", primary: "0", primaryLabel: "첨부 문서", secondary: "0", secondaryLabel: "검수 대기" }
+  { title: "거래처", href: "/clients", primary: "0", primaryLabel: "등록 업체", secondary: "0", secondaryLabel: "신규 담당자" },
+  { title: "계약/매출", href: "/contracts", primary: "0", primaryLabel: "진행 계약", secondary: "0", secondaryLabel: "발행 대기" },
+  { title: "지출", href: "/expenses", primary: "0", primaryLabel: "이번 달 지출", secondary: "0", secondaryLabel: "승인 대기" },
+  { title: "회의", href: "/meetings", primary: "0", primaryLabel: "이번 주 회의", secondary: "0", secondaryLabel: "후속 조치" },
+  { title: "캘린더", href: "/calendar", primary: "0", primaryLabel: "오늘 일정", secondary: "0", secondaryLabel: "이번 주 일정" },
+  { title: "인사", href: "/hr", primary: "0", primaryLabel: "등록 직원", secondary: "0", secondaryLabel: "확인 필요" },
+  { title: "보고", href: "/reports/daily", primary: "0", primaryLabel: "오늘 보고", secondary: "0", secondaryLabel: "검토 항목" },
+  { title: "문서", href: "/documents/estimate", primary: "0", primaryLabel: "첨부 문서", secondary: "0", secondaryLabel: "검수 대기" }
 ];
 
 export const erpFlowGroups = [
-  { title: "거래 시작", items: ["명함으로 거래처 만들기", "담당자 연결"] },
-  { title: "계약 처리", items: ["견적서", "인보이스", "계약서"] },
-  { title: "운영 기록", items: ["회의", "캘린더", "첨부 문서"] },
-  { title: "정산 마감", items: ["영수증으로 지출 만들기", "지출 승인", "입금 확인"] }
+  { title: "거래 시작", items: [{ label: "명함으로 거래처 만들기", href: "/clients/business-card" }, { label: "담당자 연결", href: "/clients" }] },
+  { title: "계약 처리", items: [{ label: "견적서", href: "/documents/estimate" }, { label: "인보이스", href: "/documents/invoice" }, { label: "계약서", href: "/contracts" }] },
+  { title: "운영 기록", items: [{ label: "회의", href: "/meetings" }, { label: "캘린더", href: "/calendar" }, { label: "첨부 문서", href: "/documents/estimate" }] },
+  { title: "정산 마감", items: [{ label: "영수증으로 지출 만들기", href: "/expenses" }, { label: "지출 승인", href: "/expenses" }, { label: "입금 확인", href: "/contracts" }] }
 ];
 
 export const dashboardTaskRows: Array<{

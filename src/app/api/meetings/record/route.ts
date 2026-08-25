@@ -44,6 +44,7 @@ export const POST = withAuth(async (request, _context, user) => {
 
   const formData = await request.formData();
   const file = formData.get("file");
+  const meetingId = typeof formData.get("meetingId") === "string" ? String(formData.get("meetingId")).trim() : "";
   const title = typeof formData.get("title") === "string" ? String(formData.get("title")).trim() : "";
   const meetingType = typeof formData.get("meetingType") === "string" ? String(formData.get("meetingType")).trim() : "내부 회의";
   const clientId = typeof formData.get("clientId") === "string" ? String(formData.get("clientId")).trim() : "";
@@ -51,21 +52,35 @@ export const POST = withAuth(async (request, _context, user) => {
   const agenda = typeof formData.get("agenda") === "string" ? String(formData.get("agenda")).trim() : "";
   const startedAtRaw = typeof formData.get("startedAt") === "string" ? String(formData.get("startedAt")) : "";
   const startedAt = startedAtRaw ? new Date(startedAtRaw) : new Date();
+  const existingMeeting = meetingId
+    ? await prisma.meeting.findUnique({ where: { id: meetingId }, select: { id: true, title: true, meetingType: true, clientId: true, location: true, startedAt: true, agenda: true } })
+    : null;
+
+  if (meetingId && !existingMeeting) {
+    return NextResponse.json({ ok: false, message: "녹음을 연결할 회의록을 찾을 수 없습니다." }, { status: 404 });
+  }
 
   if (!(file instanceof File) || !file.type.startsWith("audio/")) {
     return NextResponse.json({ ok: false, message: "회의 녹음 파일을 찾을 수 없습니다." }, { status: 400 });
   }
 
-  if (!title) {
+  const resolvedTitle = title || existingMeeting?.title || "";
+  const resolvedMeetingType = meetingType || existingMeeting?.meetingType || "내부 회의";
+  const resolvedClientId = clientId || existingMeeting?.clientId || "";
+  const resolvedLocation = location || existingMeeting?.location || "";
+  const resolvedAgenda = agenda || existingMeeting?.agenda || "";
+  const resolvedStartedAt = startedAtRaw ? startedAt : existingMeeting?.startedAt || new Date();
+
+  if (!resolvedTitle) {
     return NextResponse.json({ ok: false, message: "회의 제목을 입력하세요." }, { status: 400 });
   }
 
-  if (Number.isNaN(startedAt.getTime())) {
+  if (Number.isNaN(resolvedStartedAt.getTime())) {
     return NextResponse.json({ ok: false, message: "회의 시작 시간이 올바르지 않습니다." }, { status: 400 });
   }
 
-  if (clientId) {
-    const client = await prisma.client.findUnique({ where: { id: clientId }, select: { id: true } });
+  if (resolvedClientId) {
+    const client = await prisma.client.findUnique({ where: { id: resolvedClientId }, select: { id: true } });
 
     if (!client) {
       return NextResponse.json({ ok: false, message: "연결할 거래처를 찾을 수 없습니다." }, { status: 400 });
@@ -127,20 +142,35 @@ export const POST = withAuth(async (request, _context, user) => {
   await writeFile(path.join(recordingDirectory, fileName), bytes, { mode: 0o600 });
 
   const meeting = await prisma.$transaction(async (transaction) => {
-    const created = await transaction.meeting.create({
-      data: {
-        title,
-        meetingType: meetingType || "내부 회의",
-        status: "DONE",
-        clientId: clientId || null,
-        location: location || null,
-        startedAt,
-        endedAt: new Date(),
-        agenda: agenda || null,
-        minutes: transcript,
-        createdById: user.id
-      }
-    });
+    const created = meetingId
+      ? await transaction.meeting.update({
+          where: { id: meetingId },
+          data: {
+            title: resolvedTitle,
+            meetingType: resolvedMeetingType,
+            status: "DONE",
+            clientId: resolvedClientId || null,
+            location: resolvedLocation || null,
+            startedAt: resolvedStartedAt,
+            endedAt: new Date(),
+            agenda: resolvedAgenda || null,
+            minutes: transcript
+          }
+        })
+      : await transaction.meeting.create({
+          data: {
+            title: resolvedTitle,
+            meetingType: resolvedMeetingType,
+            status: "DONE",
+            clientId: resolvedClientId || null,
+            location: resolvedLocation || null,
+            startedAt: resolvedStartedAt,
+            endedAt: new Date(),
+            agenda: resolvedAgenda || null,
+            minutes: transcript,
+            createdById: user.id
+          }
+        });
 
     await transaction.attachment.create({
       data: {
