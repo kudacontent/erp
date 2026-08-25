@@ -1,14 +1,15 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Search } from "lucide-react";
+import Link from "next/link";
+import { ChevronLeft, ChevronRight, Search } from "lucide-react";
 
 type CalendarDay = {
   key: string;
   day: string;
   muted: boolean;
   today?: boolean;
-  events: Array<{ id: string; title: string; category: string; isAllDay: boolean; syncStatus: string }>;
+  events: Array<{ id: string; title: string; category: string; time: string; isAllDay: boolean; syncStatus: string }>;
 };
 
 type TodayEvent = {
@@ -26,14 +27,31 @@ type CalendarCategory = {
   color: string;
 };
 
+type CalendarMonthEvent = {
+  id: string;
+  date: string;
+  time: string;
+  title: string;
+  category: string;
+  syncStatus: string;
+};
+
 export function FilterableCalendar({
   calendarDays,
   todayEvents,
-  calendarCategories
+  calendarCategories,
+  monthEvents,
+  monthLabel,
+  previousMonth,
+  nextMonth
 }: {
   calendarDays: CalendarDay[];
   todayEvents: TodayEvent[];
   calendarCategories: CalendarCategory[];
+  monthEvents: CalendarMonthEvent[];
+  monthLabel: string;
+  previousMonth: string;
+  nextMonth: string;
 }) {
   const [query, setQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("전체");
@@ -61,18 +79,48 @@ export function FilterableCalendar({
     });
   }, [normalizedQuery, selectedCategory, todayEvents]);
 
+  const filteredMonthEvents = useMemo(() => {
+    return monthEvents.filter((event) => {
+      const matchesCategory = selectedCategory === "전체" || event.category === selectedCategory;
+      const matchesQuery = !normalizedQuery || `${event.title} ${event.category} ${event.date} ${event.time}`.toLowerCase().includes(normalizedQuery);
+
+      return matchesCategory && matchesQuery;
+    });
+  }, [monthEvents, normalizedQuery, selectedCategory]);
+
   const visibleEventCount = filteredDays.reduce((sum, day) => sum + day.events.length, 0);
   const categories = [{ label: "전체", count: calendarDays.reduce((sum, day) => sum + day.events.length, 0), color: "bg-marine" }, ...calendarCategories];
 
   return (
     <section className="mb-6 grid w-full min-w-0 max-w-full gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
       <div className="min-w-0 rounded-md border border-line bg-white p-5">
-        <div className="mb-5 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-          <div>
-            <h3 className="text-lg font-bold text-ink">일정 현황</h3>
-            <p className="mt-1 text-sm font-medium text-steel">표시 일정 {visibleEventCount}건</p>
+        <div className="mb-5 space-y-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h3 className="text-lg font-bold text-ink">일정 현황</h3>
+              <p className="mt-1 text-sm font-medium text-steel">{monthLabel} · 표시 일정 {visibleEventCount}건</p>
+            </div>
+            <div className="flex items-center gap-1 self-start rounded-md border border-line bg-paper p-1 sm:self-auto">
+              <Link
+                href={`/calendar?month=${previousMonth}`}
+                aria-label="이전 달"
+                className="rounded-md p-2 text-steel transition hover:bg-white hover:text-marine"
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </Link>
+              <Link href="/calendar" className="rounded-md px-3 py-2 text-xs font-bold text-marine transition hover:bg-white">
+                오늘
+              </Link>
+              <Link
+                href={`/calendar?month=${nextMonth}`}
+                aria-label="다음 달"
+                className="rounded-md p-2 text-steel transition hover:bg-white hover:text-marine"
+              >
+                <ChevronRight className="h-4 w-4" />
+              </Link>
+            </div>
           </div>
-          <label className="flex w-full min-w-0 items-center gap-2 rounded-md border border-line bg-paper px-3 py-2 text-sm text-steel sm:min-w-72">
+          <label className="flex w-full min-w-0 items-center gap-2 rounded-md border border-line bg-paper px-3 py-2 text-sm text-steel">
             <Search className="h-4 w-4" />
             <input
               aria-label="일정 검색"
@@ -105,11 +153,23 @@ export function FilterableCalendar({
                 {day.today ? <span className="rounded-md bg-white px-2 py-1 text-xs text-marine">오늘</span> : null}
               </div>
               <div className="space-y-1">
-                {day.events.slice(0, 3).map((event) => (
-                  <div key={event.id} className="truncate rounded-sm bg-paper px-2 py-1 text-xs text-steel">
-                    {event.title}
-                  </div>
-                ))}
+                {day.events.slice(0, 3).map((event) => {
+                  const eventContent = (
+                    <span className="flex min-w-0 flex-col rounded-sm bg-paper px-2 py-1 text-xs text-steel">
+                      <span className="text-[10px] font-bold text-marine">{event.time}</span>
+                      <span className="truncate">{event.title}</span>
+                    </span>
+                  );
+
+                  return event.syncStatus === "LOCAL_ONLY" ? (
+                    <Link key={event.id} href={`/calendar?month=${day.key.slice(0, 7)}&eventId=${encodeURIComponent(event.id)}`} className="block hover:opacity-75">
+                      {eventContent}
+                    </Link>
+                  ) : (
+                    <div key={event.id}>{eventContent}</div>
+                  );
+                })}
+                {day.events.length > 3 ? <p className="px-2 text-xs font-bold text-marine">+{day.events.length - 3}건 더보기</p> : null}
               </div>
             </div>
           ))}
@@ -118,6 +178,29 @@ export function FilterableCalendar({
       </div>
 
       <aside className="w-full min-w-0 max-w-full space-y-4 overflow-hidden">
+        <section className="rounded-md border border-line bg-white p-5">
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <h3 className="font-bold text-ink">{monthLabel} 전체 일정</h3>
+            <span className="shrink-0 rounded-md bg-[#e8f5fb] px-2 py-1 text-xs font-bold text-marine">{filteredMonthEvents.length}건</span>
+          </div>
+          <div className="max-h-96 space-y-3 overflow-y-auto pr-1">
+            {filteredMonthEvents.length ? (
+              filteredMonthEvents.map((event) => (
+                <div key={event.id} className="rounded-md bg-paper px-3 py-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-xs font-bold text-marine">{event.date} · {event.time}</span>
+                    <span className="shrink-0 rounded-md bg-white px-2 py-1 text-xs text-steel">{event.category}</span>
+                  </div>
+                  <p className="mt-2 truncate text-sm font-medium text-ink">{event.title}</p>
+                  <p className="mt-1 text-xs text-steel">{event.syncStatus === "GOOGLE_SYNCED" ? "Google Calendar" : "ERP"}</p>
+                </div>
+              ))
+            ) : (
+              <p className="rounded-md bg-paper px-3 py-4 text-sm font-medium text-steel">조건에 맞는 일정이 없습니다.</p>
+            )}
+          </div>
+        </section>
+
         <section className="rounded-md border border-line bg-white p-5">
           <h3 className="mb-4 font-bold text-ink">오늘 일정</h3>
           <div className="space-y-4">

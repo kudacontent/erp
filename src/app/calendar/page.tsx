@@ -4,31 +4,29 @@ import { CalendarEventForm, type CalendarEventFormValue } from "@/components/cal
 import { FilterableCalendar } from "@/components/filterable-calendar";
 import { GoogleCalendarPanel } from "@/components/google-calendar-panel";
 import { getCurrentUser } from "@/lib/auth";
-import { buildCalendarViewData } from "@/lib/calendar-data";
+import { buildCalendarViewData, getCalendarMonthDate } from "@/lib/calendar-data";
 import { getGoogleCalendarStatus } from "@/lib/google-calendar";
 import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
 
-export default async function CalendarPage({ searchParams }: { searchParams: Promise<{ google?: string; code?: string; eventId?: string }> }) {
+export default async function CalendarPage({ searchParams }: { searchParams: Promise<{ google?: string; code?: string; eventId?: string; month?: string }> }) {
   const user = await getCurrentUser();
   if (!user) {
     redirect("/login?next=/calendar");
   }
 
+  const params = await searchParams;
+  const now = new Date();
+  const viewDate = getCalendarMonthDate(params.month, now);
   const [events, googleStatus] = await Promise.all([
     prisma.calendarEvent.findMany({
-      where: {
-        startTime: { lt: new Date(Date.now() + 730 * 24 * 60 * 60 * 1000) },
-        endTime: { gt: new Date(Date.now() - 365 * 24 * 60 * 60 * 1000) }
-      },
       include: { meeting: { select: { id: true } }, client: { select: { id: true } }, contract: { select: { id: true } } },
       orderBy: { startTime: "asc" }
     }),
     getGoogleCalendarStatus()
   ]);
-  const calendar = buildCalendarViewData(events);
-  const params = await searchParams;
+  const calendar = buildCalendarViewData(events, now, viewDate);
   const selectedEventRecord = params.eventId ? events.find((event) => event.id === params.eventId) : null;
   const selectedEvent: CalendarEventFormValue | null = selectedEventRecord
     ? {
@@ -68,7 +66,15 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
         ))}
       </section>
 
-      <FilterableCalendar calendarDays={calendar.calendarDays} todayEvents={calendar.todayEvents} calendarCategories={calendar.calendarCategories} />
+      <FilterableCalendar
+        calendarDays={calendar.calendarDays}
+        todayEvents={calendar.todayEvents}
+        calendarCategories={calendar.calendarCategories}
+        monthEvents={calendar.monthEvents}
+        monthLabel={calendar.monthLabel}
+        previousMonth={calendar.previousMonth}
+        nextMonth={calendar.nextMonth}
+      />
 
       <section className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
         <div className="rounded-md border border-line bg-white p-5">
@@ -79,7 +85,7 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
                 <span className="w-14 shrink-0 text-sm font-bold text-marine">{event.date}</span>
                 <p className="min-w-0 flex-1 truncate text-sm font-medium text-ink">{event.title}</p>
                 <span className="rounded-md bg-white px-2 py-1 text-xs font-medium text-steel">{event.type}</span>
-                {event.syncStatus === "LOCAL_ONLY" ? <a href={`/calendar?eventId=${encodeURIComponent(event.id)}`} className="shrink-0 text-xs font-bold text-marine hover:underline">수정</a> : <span className="shrink-0 text-xs font-medium text-steel">Google</span>}
+                {event.syncStatus === "LOCAL_ONLY" ? <a href={`/calendar?month=${encodeURIComponent(event.month)}&eventId=${encodeURIComponent(event.id)}`} className="shrink-0 text-xs font-bold text-marine hover:underline">수정</a> : <span className="shrink-0 text-xs font-medium text-steel">Google</span>}
               </div>
             )) : <p className="rounded-md bg-paper px-3 py-8 text-center text-sm font-medium text-steel">오늘 이후 등록된 일정이 없습니다. Google 동기화 또는 일정 등록을 이용하세요.</p>}
           </div>

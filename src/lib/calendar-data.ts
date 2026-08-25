@@ -15,6 +15,7 @@ export type CalendarEventSummary = {
   id: string;
   title: string;
   category: string;
+  time: string;
   isAllDay: boolean;
   syncStatus: string;
 };
@@ -45,8 +46,18 @@ export type CalendarCategory = {
 export type CalendarUpcomingEvent = {
   id: string;
   date: string;
+  month: string;
   title: string;
   type: string;
+  syncStatus: string;
+};
+
+export type CalendarMonthEvent = {
+  id: string;
+  date: string;
+  time: string;
+  title: string;
+  category: string;
   syncStatus: string;
 };
 
@@ -92,6 +103,30 @@ function monthKey(year: number, month: number) {
   return `${year}-${String(month).padStart(2, "0")}`;
 }
 
+export function getCalendarMonthParam(date: Date) {
+  const parts = getSeoulParts(date);
+  return monthKey(parts.year, parts.month);
+}
+
+export function getCalendarMonthDate(value: string | undefined, fallback = new Date()) {
+  const match = /^(\d{4})-(\d{2})$/.exec(value ?? "");
+  const year = Number(match?.[1]);
+  const month = Number(match?.[2]);
+
+  if (!match || !Number.isInteger(year) || year < 1970 || year > 2100 || !Number.isInteger(month) || month < 1 || month > 12) {
+    return fallback;
+  }
+
+  // Use midday in Seoul so the selected month cannot shift across a timezone boundary.
+  return new Date(Date.UTC(year, month - 1, 15, 3, 0, 0));
+}
+
+export function shiftCalendarMonth(value: string, offset: number) {
+  const selectedDate = getCalendarMonthDate(value);
+  const parts = getSeoulParts(selectedDate);
+  return getCalendarMonthParam(new Date(Date.UTC(parts.year, parts.month - 1 + offset, 15, 3, 0, 0)));
+}
+
 function formatTime(date: Date, isAllDay: boolean) {
   if (isAllDay) {
     return "종일";
@@ -106,23 +141,24 @@ function formatShortDate(date: Date) {
   return `${String(parts.month).padStart(2, "0")}/${String(parts.day).padStart(2, "0")}`;
 }
 
-export function buildCalendarViewData(events: CalendarEventRecord[], now = new Date()) {
+export function buildCalendarViewData(events: CalendarEventRecord[], now = new Date(), viewDate = now) {
   const nowParts = getSeoulParts(now);
-  const currentMonthKey = monthKey(nowParts.year, nowParts.month);
+  const viewParts = getSeoulParts(viewDate);
+  const viewMonthKey = monthKey(viewParts.year, viewParts.month);
   const todayKey = dateKey(now);
-  const monthEvents = events.filter((event) => dateKey(event.startTime).startsWith(currentMonthKey));
+  const monthEvents = events.filter((event) => dateKey(event.startTime).startsWith(viewMonthKey));
   const eventsByDate = new Map<string, CalendarEventSummary[]>();
 
   for (const event of monthEvents) {
     const key = dateKey(event.startTime);
     const summaries = eventsByDate.get(key) ?? [];
-    summaries.push({ id: event.id, title: event.title, category: event.category, isAllDay: event.isAllDay, syncStatus: event.syncStatus });
+    summaries.push({ id: event.id, title: event.title, category: event.category, time: formatTime(event.startTime, event.isAllDay), isAllDay: event.isAllDay, syncStatus: event.syncStatus });
     eventsByDate.set(key, summaries);
   }
 
-  const firstDay = new Date(Date.UTC(nowParts.year, nowParts.month - 1, 1));
+  const firstDay = new Date(Date.UTC(viewParts.year, viewParts.month - 1, 1));
   const firstDayOffset = (firstDay.getUTCDay() + 6) % 7;
-  const daysInMonth = new Date(Date.UTC(nowParts.year, nowParts.month, 0)).getUTCDate();
+  const daysInMonth = new Date(Date.UTC(viewParts.year, viewParts.month, 0)).getUTCDate();
   const cellCount = Math.ceil((firstDayOffset + daysInMonth) / 7) * 7;
   const calendarDays: CalendarDay[] = [];
 
@@ -133,7 +169,7 @@ export function buildCalendarViewData(events: CalendarEventRecord[], now = new D
       continue;
     }
 
-    const key = `${currentMonthKey}-${String(dayNumber).padStart(2, "0")}`;
+    const key = `${viewMonthKey}-${String(dayNumber).padStart(2, "0")}`;
     calendarDays.push({
       key,
       day: String(dayNumber),
@@ -169,7 +205,16 @@ export function buildCalendarViewData(events: CalendarEventRecord[], now = new D
     .filter((event) => dateKey(event.startTime) >= todayKey)
     .sort((left, right) => left.startTime.getTime() - right.startTime.getTime())
     .slice(0, 12)
-    .map((event) => ({ id: event.id, date: formatShortDate(event.startTime), title: event.title, type: event.category, syncStatus: event.syncStatus }));
+    .map((event) => ({ id: event.id, date: formatShortDate(event.startTime), month: getCalendarMonthParam(event.startTime), title: event.title, type: event.category, syncStatus: event.syncStatus }));
+
+  const monthEventList: CalendarMonthEvent[] = monthEvents.map((event) => ({
+    id: event.id,
+    date: formatShortDate(event.startTime),
+    time: formatTime(event.startTime, event.isAllDay),
+    title: event.title,
+    category: event.category,
+    syncStatus: event.syncStatus
+  }));
 
   const syncedEvents: CalendarSyncedEvent[] = events
     .filter((event) => event.syncStatus === "GOOGLE_SYNCED")
@@ -179,11 +224,22 @@ export function buildCalendarViewData(events: CalendarEventRecord[], now = new D
 
   const countFor = (category: string) => categoryCounts.get(category) ?? 0;
   const calendarStats: CalendarStat[] = [
-    { label: "이번 달 일정", value: `${monthEvents.length}건` },
+    { label: `${viewParts.month}월 일정`, value: `${monthEvents.length}건` },
     { label: "회의 일정", value: `${countFor("회의")}건` },
     { label: "정산 일정", value: `${countFor("정산")}건` },
     { label: "인사/내부", value: `${countFor("내부")}건` }
   ];
 
-  return { calendarStats, calendarDays, todayEvents, calendarCategories, upcomingEvents, syncedEvents };
+  return {
+    calendarStats,
+    calendarDays,
+    todayEvents,
+    calendarCategories,
+    upcomingEvents,
+    syncedEvents,
+    monthEvents: monthEventList,
+    monthLabel: `${viewParts.year}년 ${viewParts.month}월`,
+    previousMonth: shiftCalendarMonth(viewMonthKey, -1),
+    nextMonth: shiftCalendarMonth(viewMonthKey, 1)
+  };
 }
