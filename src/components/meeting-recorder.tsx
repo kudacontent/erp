@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { FilePenLine, Loader2, Mic, RefreshCw, Save, Square, Waves } from "lucide-react";
+import { FilePenLine, Loader2, Mic, Pause, Play, RefreshCw, Save, Square, Waves } from "lucide-react";
 
 type RecorderStatus = "idle" | "saving" | "recording" | "transcribing" | "saved" | "error";
 type ClientOption = { id: string; name: string };
@@ -30,12 +30,127 @@ function toIso(value: string) {
   return Number.isNaN(date.getTime()) ? new Date().toISOString() : date.toISOString();
 }
 
-function LiveWaveform({ stream, active }: { stream: MediaStream | null; active: boolean }) {
+function formatDuration(totalSeconds: number) {
+  const minutes = Math.floor(totalSeconds / 60).toString().padStart(2, "0");
+  const seconds = (totalSeconds % 60).toString().padStart(2, "0");
+  return `${minutes}:${seconds}`;
+}
+
+function writeWavString(view: DataView, offset: number, value: string) {
+  for (let index = 0; index < value.length; index += 1) {
+    view.setUint8(offset + index, value.charCodeAt(index));
+  }
+}
+
+function encodeWav(chunks: Float32Array[], inputSampleRate: number) {
+  const inputLength = chunks.reduce((total, chunk) => total + chunk.length, 0);
+  if (!inputLength) return null;
+
+  const input = new Float32Array(inputLength);
+  let offset = 0;
+  for (const chunk of chunks) {
+    input.set(chunk, offset);
+    offset += chunk.length;
+  }
+
+  const targetSampleRate = 16_000;
+  const sampleRateRatio = inputSampleRate / targetSampleRate;
+  const outputLength = Math.max(1, Math.floor(input.length / sampleRateRatio));
+  const buffer = new ArrayBuffer(44 + outputLength * 2);
+  const view = new DataView(buffer);
+  writeWavString(view, 0, "RIFF");
+  view.setUint32(4, 36 + outputLength * 2, true);
+  writeWavString(view, 8, "WAVE");
+  writeWavString(view, 12, "fmt ");
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true);
+  view.setUint16(22, 1, true);
+  view.setUint32(24, targetSampleRate, true);
+  view.setUint32(28, targetSampleRate * 2, true);
+  view.setUint16(32, 2, true);
+  view.setUint16(34, 16, true);
+  writeWavString(view, 36, "data");
+  view.setUint32(40, outputLength * 2, true);
+
+  for (let index = 0; index < outputLength; index += 1) {
+    const sourcePosition = index * sampleRateRatio;
+    const leftIndex = Math.floor(sourcePosition);
+    const rightIndex = Math.min(leftIndex + 1, input.length - 1);
+    const weight = sourcePosition - leftIndex;
+    const sample = input[leftIndex] * (1 - weight) + input[rightIndex] * weight;
+    const clamped = Math.max(-1, Math.min(1, sample));
+    view.setInt16(44 + index * 2, clamped < 0 ? clamped * 0x8000 : clamped * 0x7fff, true);
+  }
+
+  return new Blob([buffer], { type: "audio/wav" });
+}
+
+type PcmCapture = {
+  pause: () => void;
+  resume: () => void;
+  stop: () => Blob | null;
+};
+
+function createPcmCapture(stream: MediaStream): PcmCapture | null {
+  const AudioContextClass = window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+  if (!AudioContextClass) return null;
+
+  try {
+    const audioContext = new AudioContextClass();
+    const source = audioContext.createMediaStreamSource(stream);
+    const processor = audioContext.createScriptProcessor(4096, 1, 1);
+    const silentGain = audioContext.createGain();
+    const chunks: Float32Array[] = [];
+    let paused = false;
+    let stopped = false;
+    silentGain.gain.value = 0;
+    processor.onaudioprocess = (event) => {
+      if (!paused && !stopped) {
+        chunks.push(new Float32Array(event.inputBuffer.getChannelData(0)));
+      }
+    };
+    source.connect(processor);
+    processor.connect(silentGain);
+    silentGain.connect(audioContext.destination);
+    void audioContext.resume();
+
+    return {
+      pause: () => {
+        paused = true;
+      },
+      resume: () => {
+        paused = false;
+        void audioContext.resume();
+      },
+      stop: () => {
+        if (stopped) return null;
+        stopped = true;
+        source.disconnect();
+        processor.disconnect();
+        silentGain.disconnect();
+        const blob = encodeWav(chunks, audioContext.sampleRate);
+        void audioContext.close();
+        return blob;
+      }
+    };
+  } catch {
+    return null;
+  }
+}
+
+function LiveWaveform({ stream, active, paused }: { stream: MediaStream | null; active: boolean; paused: boolean }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const pausedRef = useRef(paused);
+  const levelsRef = useRef<number[]>([]);
+
+  useEffect(() => {
+    pausedRef.current = paused;
+  }, [paused]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas || !stream || !active) return;
+    levelsRef.current = [];
 
     const AudioContextClass = window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
     if (!AudioContextClass) return;
@@ -43,42 +158,75 @@ function LiveWaveform({ stream, active }: { stream: MediaStream | null; active: 
     const audioContext = new AudioContextClass();
     const source = audioContext.createMediaStreamSource(stream);
     const analyser = audioContext.createAnalyser();
-    analyser.fftSize = 2048;
+    analyser.fftSize = 1024;
     source.connect(analyser);
     const data = new Uint8Array(analyser.fftSize);
     const context = canvas.getContext("2d");
     let frame = 0;
+    let lastSampleAt = 0;
 
     void audioContext.resume();
 
     const draw = () => {
       frame = window.requestAnimationFrame(draw);
-      analyser.getByteTimeDomainData(data);
       if (!context) return;
 
-      const width = canvas.width;
-      const height = canvas.height;
+      const devicePixelRatio = Math.min(window.devicePixelRatio || 1, 2);
+      const width = Math.max(canvas.clientWidth, 280);
+      const height = Math.max(canvas.clientHeight, 96);
+      const pixelWidth = Math.floor(width * devicePixelRatio);
+      const pixelHeight = Math.floor(height * devicePixelRatio);
+      if (canvas.width !== pixelWidth || canvas.height !== pixelHeight) {
+        canvas.width = pixelWidth;
+        canvas.height = pixelHeight;
+      }
+      context.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
       context.clearRect(0, 0, width, height);
-      context.fillStyle = "#f4f9fc";
+      context.fillStyle = "#fbfbfd";
       context.fillRect(0, 0, width, height);
-      context.strokeStyle = "#d9e7ef";
+      context.strokeStyle = "#e5e7eb";
       context.lineWidth = 1;
       context.beginPath();
       context.moveTo(0, height / 2);
       context.lineTo(width, height / 2);
       context.stroke();
-      context.strokeStyle = "#0876a8";
-      context.lineWidth = 3;
-      context.beginPath();
 
-      for (let index = 0; index < data.length; index += 1) {
-        const x = (index / (data.length - 1)) * width;
-        const y = (data[index] / 255) * height;
-        if (index === 0) context.moveTo(x, y);
-        else context.lineTo(x, y);
+      const now = performance.now();
+      if (!pausedRef.current && now - lastSampleAt >= 65) {
+        analyser.getByteTimeDomainData(data);
+        let sum = 0;
+        for (const value of data) {
+          const normalized = (value - 128) / 128;
+          sum += normalized * normalized;
+        }
+        const level = Math.min(1, Math.max(0.035, Math.sqrt(sum / data.length) * 7));
+        levelsRef.current.push(level);
+        lastSampleAt = now;
       }
 
-      context.stroke();
+      const barWidth = 3;
+      const barGap = 2;
+      const maxBars = Math.max(1, Math.floor((width - 16) / (barWidth + barGap)));
+      const levels = levelsRef.current.slice(-maxBars);
+      const startX = width - 8 - levels.length * (barWidth + barGap);
+      for (let index = 0; index < levels.length; index += 1) {
+        const barHeight = Math.max(8, levels[index] * (height - 22));
+        const x = startX + index * (barWidth + barGap);
+        const y = (height - barHeight) / 2;
+        context.fillStyle = pausedRef.current ? "#cbd5e1" : "#ff3b30";
+        if (typeof context.roundRect === "function") {
+          context.beginPath();
+          context.roundRect(x, y, barWidth, barHeight, 2);
+          context.fill();
+        } else {
+          context.fillRect(x, y, barWidth, barHeight);
+        }
+      }
+
+      context.fillStyle = pausedRef.current ? "#94a3b8" : "#ff3b30";
+      context.beginPath();
+      context.arc(width - 8, height / 2, 3, 0, Math.PI * 2);
+      context.fill();
     };
 
     draw();
@@ -90,8 +238,8 @@ function LiveWaveform({ stream, active }: { stream: MediaStream | null; active: 
   }, [active, stream]);
 
   return (
-    <div className="overflow-hidden rounded-md border border-line bg-paper p-2" aria-label="실시간 녹음 파형">
-      <canvas ref={canvasRef} width={720} height={180} className="h-28 w-full sm:h-36" />
+    <div className="overflow-hidden rounded-2xl border border-[#e5e7eb] bg-[#fbfbfd] px-3 py-2" aria-label="실시간 녹음 파형">
+      <canvas ref={canvasRef} width={720} height={112} className="h-24 w-full" />
     </div>
   );
 }
@@ -117,8 +265,11 @@ export function MeetingRecorder({
   const [status, setStatus] = useState<RecorderStatus>("idle");
   const [message, setMessage] = useState("");
   const [stream, setStream] = useState<MediaStream | null>(null);
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const [isPaused, setIsPaused] = useState(false);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const audioCaptureRef = useRef<PcmCapture | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const pendingBlobRef = useRef<Blob | null>(null);
   const recordingStartedAtRef = useRef("");
@@ -134,12 +285,21 @@ export function MeetingRecorder({
     setMinutes(initialMeeting?.minutes ?? "");
     setStatus("idle");
     setMessage("");
+    setElapsedSeconds(0);
+    setIsPaused(false);
     pendingBlobRef.current = null;
   }, [initialMeeting?.id, selectedClientId]);
 
   useEffect(() => () => {
+    audioCaptureRef.current?.stop();
     streamRef.current?.getTracks().forEach((track) => track.stop());
   }, []);
+
+  useEffect(() => {
+    if (status !== "recording" || isPaused) return;
+    const timer = window.setInterval(() => setElapsedSeconds((value) => value + 1), 1000);
+    return () => window.clearInterval(timer);
+  }, [isPaused, status]);
 
   function formPayload() {
     return {
@@ -188,7 +348,8 @@ export function MeetingRecorder({
     setStatus("transcribing");
     setMessage("녹음 파일을 서버로 전송하고 회의록으로 변환하는 중입니다. 잠시 기다려주세요.");
     const formData = new FormData();
-    formData.append("file", blob, `meeting-${Date.now()}.webm`);
+    const fileExtension = blob.type.includes("wav") ? "wav" : blob.type.includes("mp4") ? "mp4" : "webm";
+    formData.append("file", blob, `meeting-${Date.now()}.${fileExtension}`);
     formData.append("meetingId", targetMeetingId);
     formData.append("title", title);
     formData.append("meetingType", meetingType);
@@ -238,19 +399,26 @@ export function MeetingRecorder({
       const mimeType = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4"].find((type) => MediaRecorder.isTypeSupported(type));
       const recorder = mimeType ? new MediaRecorder(activeStream, { mimeType }) : new MediaRecorder(activeStream);
       chunksRef.current = [];
+      setElapsedSeconds(0);
+      setIsPaused(false);
       recordingStartedAtRef.current = new Date().toISOString();
       streamRef.current = activeStream;
       setStream(activeStream);
+      audioCaptureRef.current = createPcmCapture(activeStream);
       mediaRecorderRef.current = recorder;
       recorder.ondataavailable = (event) => {
         if (event.data.size > 0) chunksRef.current.push(event.data);
       };
       recorder.onstop = () => {
-        const blob = new Blob(chunksRef.current, { type: recorder.mimeType || "audio/webm" });
+        const originalBlob = new Blob(chunksRef.current, { type: recorder.mimeType || "audio/webm" });
+        const normalizedBlob = audioCaptureRef.current?.stop();
+        audioCaptureRef.current = null;
+        const blob = normalizedBlob?.size ? normalizedBlob : originalBlob;
         activeStream.getTracks().forEach((track) => track.stop());
         streamRef.current = null;
         setStream(null);
         mediaRecorderRef.current = null;
+        setIsPaused(false);
         if (blob.size > 0) void uploadRecording(blob, targetMeetingId);
         else {
           setStatus("error");
@@ -267,7 +435,25 @@ export function MeetingRecorder({
   }
 
   function stopRecording() {
-    if (mediaRecorderRef.current?.state === "recording") mediaRecorderRef.current.stop();
+    const recorder = mediaRecorderRef.current;
+    if (recorder?.state === "recording" || recorder?.state === "paused") recorder.stop();
+  }
+
+  function togglePause() {
+    const recorder = mediaRecorderRef.current;
+    if (!recorder || status !== "recording") return;
+
+    if (recorder.state === "recording") {
+      recorder.pause();
+      audioCaptureRef.current?.pause();
+      setIsPaused(true);
+      setMessage("녹음을 일시정지했습니다. 다시 누르면 이어서 녹음합니다.");
+    } else if (recorder.state === "paused") {
+      recorder.resume();
+      audioCaptureRef.current?.resume();
+      setIsPaused(false);
+      setMessage("녹음을 계속합니다.");
+    }
   }
 
   function newMeeting() {
@@ -301,11 +487,41 @@ export function MeetingRecorder({
         {minutes ? <label className="block md:col-span-2"><span className="text-xs font-medium text-steel">회의록 내용</span><textarea className={`${inputClass} min-h-40`} value={minutes} onChange={(event) => setMinutes(event.target.value)} disabled={disabled} /></label> : null}
       </div>
 
-      {status === "recording" ? <div className="mt-4"><div className="mb-2 flex items-center gap-2 text-sm font-bold text-[#b42318]"><Waves className="h-4 w-4" /> 실시간 녹음 파형</div><LiveWaveform stream={stream} active={status === "recording"} /></div> : null}
+      {status === "recording" ? (
+        <div className="mt-4 rounded-[28px] border border-[#e5e7eb] bg-[#fbfbfd] p-4 shadow-sm sm:p-5">
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2 text-sm font-bold text-[#ff3b30]">
+              <span className={`h-2.5 w-2.5 rounded-full bg-[#ff3b30] ${isPaused ? "" : "animate-pulse"}`} />
+              {isPaused ? "일시정지" : "녹음 중"}
+            </div>
+            <time className="font-mono text-3xl font-semibold tracking-tight text-ink" dateTime={`PT${elapsedSeconds}S`}>
+              {formatDuration(elapsedSeconds)}
+            </time>
+          </div>
+          <LiveWaveform stream={stream} active={status === "recording"} paused={isPaused} />
+          <div className="mt-4 flex items-center justify-center gap-3">
+            <button
+              type="button"
+              onClick={togglePause}
+              aria-label={isPaused ? "녹음 계속하기" : "녹음 일시정지"}
+              className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-[#f0f1f5] text-ink shadow-sm transition hover:bg-[#e4e5ea]"
+            >
+              {isPaused ? <Play className="h-5 w-5 fill-current" /> : <Pause className="h-5 w-5" />}
+            </button>
+            <button
+              type="button"
+              onClick={stopRecording}
+              className="inline-flex h-12 items-center justify-center gap-2 rounded-full bg-[#ff3b30] px-5 text-sm font-bold text-white shadow-sm transition hover:bg-[#e02f26]"
+            >
+              <Square className="h-4 w-4 fill-current" /> 녹음 종료
+            </button>
+          </div>
+        </div>
+      ) : null}
 
       <div className="mt-4 flex flex-wrap items-center gap-2">
         <button type="button" onClick={() => void saveDraft()} disabled={disabled} className="inline-flex items-center justify-center gap-2 rounded-md border border-line px-4 py-2.5 text-sm font-bold text-steel hover:border-marine hover:text-marine disabled:cursor-not-allowed disabled:opacity-60"><Save className="h-4 w-4" /> 회의록 저장</button>
-        {status === "recording" ? <button type="button" onClick={stopRecording} className="inline-flex items-center justify-center gap-2 rounded-md bg-[#b42318] px-4 py-2.5 text-sm font-bold text-white"><Square className="h-4 w-4" /> 녹음 중지 및 전사</button> : <button type="button" onClick={() => void startRecording()} disabled={disabled} className="inline-flex items-center justify-center gap-2 rounded-md bg-marine px-4 py-2.5 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-60">{status === "saving" || status === "transcribing" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Mic className="h-4 w-4" />} 녹음 시작</button>}
+        {status !== "recording" ? <button type="button" onClick={() => void startRecording()} disabled={disabled} className="inline-flex items-center justify-center gap-2 rounded-md bg-marine px-4 py-2.5 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-60">{status === "saving" || status === "transcribing" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Mic className="h-4 w-4" />} 녹음 시작</button> : <span className="inline-flex items-center gap-2 text-sm font-medium text-steel"><Waves className="h-4 w-4 text-[#ff3b30]" /> 음성 메모처럼 녹음 중입니다.</span>}
         {pendingBlobRef.current ? <button type="button" onClick={() => meetingId && void uploadRecording(pendingBlobRef.current as Blob, meetingId)} disabled={status === "transcribing"} className="inline-flex items-center gap-2 rounded-md bg-[#e8f5fb] px-3 py-2.5 text-sm font-bold text-marine disabled:opacity-60"><RefreshCw className="h-4 w-4" /> 녹음 파일 재전송</button> : null}
         {status === "saving" ? <span className="text-sm text-steel">저장 중…</span> : null}
         {status === "transcribing" ? <span className="text-sm text-steel">전사 중…</span> : null}

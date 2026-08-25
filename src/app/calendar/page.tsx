@@ -19,8 +19,8 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
   const [events, googleStatus] = await Promise.all([
     prisma.calendarEvent.findMany({
       where: {
-        startTime: { lt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000) },
-        endTime: { gt: new Date(Date.now() - 90 * 24 * 60 * 60 * 1000) }
+        startTime: { lt: new Date(Date.now() + 730 * 24 * 60 * 60 * 1000) },
+        endTime: { gt: new Date(Date.now() - 365 * 24 * 60 * 60 * 1000) }
       },
       include: { meeting: { select: { id: true } }, client: { select: { id: true } }, contract: { select: { id: true } } },
       orderBy: { startTime: "asc" }

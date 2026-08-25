@@ -45,6 +45,19 @@ type GoogleEventsResponse = {
   nextPageToken?: string;
 };
 
+type GoogleCalendarListEntry = {
+  id?: string;
+  summary?: string;
+  primary?: boolean;
+  hidden?: boolean;
+};
+
+type GoogleCalendarListResponse = {
+  items?: GoogleCalendarListEntry[];
+  nextPageToken?: string;
+  error?: { code?: number; message?: string };
+};
+
 export type GoogleCalendarStatus = {
   configured: boolean;
   targetEmail: string;
@@ -342,6 +355,50 @@ function safeSyncError(error: unknown) {
   return "Google Calendar 동기화 중 오류가 발생했습니다.";
 }
 
+async function listGoogleCalendars(accessToken: string, preferredCalendarId: string) {
+  const calendars = new Map<string, GoogleCalendarListEntry>();
+  let pageToken: string | undefined;
+
+  do {
+    const url = new URL(`${GOOGLE_CALENDAR_API_URL}/users/me/calendarList`);
+    url.searchParams.set("maxResults", "250");
+    url.searchParams.set("showDeleted", "false");
+    url.searchParams.set("showHidden", "false");
+    url.searchParams.set("minAccessRole", "reader");
+    if (pageToken) {
+      url.searchParams.set("pageToken", pageToken);
+    }
+
+    const response = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } });
+    const data = (await response.json().catch(() => ({}))) as GoogleCalendarListResponse;
+    if (!response.ok) {
+      if (response.status === 401) {
+        throw new GoogleCalendarError("Google 인증이 만료되었습니다. 캘린더를 다시 연결하세요.", "google_unauthorized", 401);
+      }
+
+      const providerMessage = data.error?.message ? `: ${data.error.message}` : "";
+      throw new GoogleCalendarError(`Google Calendar 목록을 조회하지 못했습니다${providerMessage}`, `google_calendar_list_${data.error?.code || response.status}`, 502);
+    }
+
+    for (const calendar of data.items ?? []) {
+      if (calendar.id && !calendar.hidden) {
+        calendars.set(calendar.id, calendar);
+      }
+    }
+    pageToken = data.nextPageToken;
+  } while (pageToken);
+
+  if (!calendars.has(preferredCalendarId)) {
+    calendars.set(preferredCalendarId, { id: preferredCalendarId, primary: preferredCalendarId === "primary" });
+  }
+
+  return [...calendars.values()].filter((calendar): calendar is GoogleCalendarListEntry & { id: string } => Boolean(calendar.id));
+}
+
+function externalGoogleEventId(calendarId: string, eventId: string) {
+  return `${calendarId}:${eventId}`;
+}
+
 export async function syncGoogleCalendar() {
   const connection = await prisma.googleCalendarConnection.findUnique({ where: { id: CONNECTION_ID } });
   if (!connection) {
@@ -349,47 +406,53 @@ export async function syncGoogleCalendar() {
   }
 
   const now = Date.now();
-  const timeMin = new Date(now - 90 * 24 * 60 * 60 * 1000);
-  const timeMax = new Date(now + 365 * 24 * 60 * 60 * 1000);
+  const timeMin = new Date(now - 365 * 24 * 60 * 60 * 1000);
+  const timeMax = new Date(now + 730 * 24 * 60 * 60 * 1000);
 
   try {
     const accessToken = await getAccessToken(connection);
-    const events: GoogleEvent[] = [];
-    let pageToken: string | undefined;
+    const calendars = await listGoogleCalendars(accessToken, connection.calendarId);
+    const events: Array<{ calendarId: string; event: GoogleEvent }> = [];
 
-    do {
-      const url = new URL(`${GOOGLE_CALENDAR_API_URL}/calendars/${encodeURIComponent(connection.calendarId)}/events`);
-      url.searchParams.set("maxResults", "2500");
-      url.searchParams.set("singleEvents", "true");
-      url.searchParams.set("orderBy", "startTime");
-      url.searchParams.set("showDeleted", "true");
-      url.searchParams.set("timeMin", timeMin.toISOString());
-      url.searchParams.set("timeMax", timeMax.toISOString());
-      url.searchParams.set("timeZone", GOOGLE_CALENDAR_TIME_ZONE);
-      if (pageToken) {
-        url.searchParams.set("pageToken", pageToken);
-      }
-
-      const response = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } });
-      const data = (await response.json().catch(() => ({}))) as GoogleEventsResponse & { error?: { code?: number } };
-
-      if (!response.ok) {
-        if (response.status === 401) {
-          throw new GoogleCalendarError("Google 인증이 만료되었습니다. 캘린더를 다시 연결하세요.", "google_unauthorized", 401);
+    for (const calendar of calendars) {
+      let pageToken: string | undefined;
+      do {
+        const url = new URL(`${GOOGLE_CALENDAR_API_URL}/calendars/${encodeURIComponent(calendar.id)}/events`);
+        url.searchParams.set("maxResults", "2500");
+        url.searchParams.set("singleEvents", "true");
+        url.searchParams.set("orderBy", "startTime");
+        url.searchParams.set("showDeleted", "true");
+        url.searchParams.set("timeMin", timeMin.toISOString());
+        url.searchParams.set("timeMax", timeMax.toISOString());
+        url.searchParams.set("timeZone", GOOGLE_CALENDAR_TIME_ZONE);
+        if (pageToken) {
+          url.searchParams.set("pageToken", pageToken);
         }
 
-        throw new GoogleCalendarError("Google Calendar 일정 조회에 실패했습니다.", `google_events_${data.error?.code || response.status}`, 502);
-      }
+        const response = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } });
+        const data = (await response.json().catch(() => ({}))) as GoogleEventsResponse & { error?: { code?: number; message?: string } };
 
-      events.push(...(data.items ?? []));
-      pageToken = data.nextPageToken;
-    } while (pageToken);
+        if (!response.ok) {
+          if (response.status === 401) {
+            throw new GoogleCalendarError("Google 인증이 만료되었습니다. 캘린더를 다시 연결하세요.", "google_unauthorized", 401);
+          }
 
-    const activeEvents = events.filter((event) => event.id && event.status !== "cancelled");
-    const googleEventIds = activeEvents.map((event) => event.id as string);
+          const providerMessage = data.error?.message ? `: ${data.error.message}` : "";
+          throw new GoogleCalendarError(`Google Calendar 일정 조회에 실패했습니다${providerMessage}`, `google_events_${data.error?.code || response.status}`, 502);
+        }
+
+        for (const event of data.items ?? []) {
+          events.push({ calendarId: calendar.id, event });
+        }
+        pageToken = data.nextPageToken;
+      } while (pageToken);
+    }
+
+    const activeEvents = events.filter(({ event }) => event.id && event.status !== "cancelled");
+    const googleEventIds = activeEvents.map(({ calendarId, event }) => externalGoogleEventId(calendarId, event.id as string));
 
     await prisma.$transaction(async (transaction) => {
-      for (const event of activeEvents) {
+      for (const { calendarId, event } of activeEvents) {
         const start = getGoogleDateTime(event.start);
         const end = getGoogleDateTime(event.end);
         if (!start || !end) {
@@ -407,11 +470,12 @@ export async function syncGoogleCalendar() {
           description: description || null,
           syncStatus: "GOOGLE_SYNCED"
         };
+        const googleEventId = externalGoogleEventId(calendarId, event.id as string);
 
         await transaction.calendarEvent.upsert({
-          where: { googleEventId: event.id },
+          where: { googleEventId },
           update: data,
-          create: { googleEventId: event.id, clientId: null, contractId: null, ...data }
+          create: { googleEventId, clientId: null, contractId: null, ...data }
         });
       }
 
@@ -430,7 +494,7 @@ export async function syncGoogleCalendar() {
       });
     });
 
-    return { accountEmail: connection.accountEmail, syncedCount: activeEvents.length, lastSyncedAt: new Date() };
+    return { accountEmail: connection.accountEmail, calendarCount: calendars.length, syncedCount: activeEvents.length, lastSyncedAt: new Date() };
   } catch (error) {
     await prisma.googleCalendarConnection.update({
       where: { id: CONNECTION_ID },

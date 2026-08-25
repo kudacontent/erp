@@ -1,11 +1,19 @@
 import { randomUUID } from "node:crypto";
-import { mkdir, writeFile } from "node:fs/promises";
+import { execFile } from "node:child_process";
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { promisify } from "node:util";
+import { tmpdir } from "node:os";
 import path from "node:path";
 import { NextResponse } from "next/server";
 import { withAuth } from "@/lib/auth";
+import { GeminiApiError, generateTextFromMedia } from "@/lib/gemini";
 import { prisma } from "@/lib/prisma";
 
 export const runtime = "nodejs";
+
+const execFileAsync = promisify(execFile);
+const MAX_INLINE_AUDIO_BYTES = 15 * 1024 * 1024;
+const GEMINI_AUDIO_MIME_TYPES = new Set(["audio/wav", "audio/mp3", "audio/mpeg", "audio/aiff", "audio/aac", "audio/flac"]);
 
 function cleanText(text: string) {
   return text
@@ -14,22 +22,71 @@ function cleanText(text: string) {
     .trim();
 }
 
-function extractText(response: unknown) {
-  const data = response as {
-    candidates?: Array<{
-      content?: {
-        parts?: Array<{ text?: string }>;
-      };
-    }>;
-  };
-
-  return data.candidates?.[0]?.content?.parts?.map((part) => part.text ?? "").join("").trim() ?? "";
-}
-
 function audioExtension(mimeType: string) {
   const baseType = mimeType.split(";")[0].toLowerCase();
   const extension = baseType.split("/")[1] ?? "webm";
-  return ["webm", "ogg", "wav", "mpeg", "mp4", "mp3"].includes(extension) ? extension : "webm";
+  return ["webm", "ogg", "wav", "mpeg", "mp4", "mp3", "aac", "flac", "aiff", "m4a"].includes(extension) ? extension : "webm";
+}
+
+function normalizedAudioMimeType(mimeType: string) {
+  const baseType = mimeType.split(";")[0].toLowerCase();
+  return baseType === "audio/mpeg" ? "audio/mp3" : baseType;
+}
+
+async function prepareAudioForGemini(bytes: Buffer, mimeType: string) {
+  const normalizedMimeType = normalizedAudioMimeType(mimeType);
+  const isOggVorbis = normalizedMimeType === "audio/ogg" && !mimeType.toLowerCase().includes("opus");
+  const isSupportedInlineAudio = GEMINI_AUDIO_MIME_TYPES.has(normalizedMimeType) || isOggVorbis;
+
+  if (isSupportedInlineAudio && bytes.length <= MAX_INLINE_AUDIO_BYTES) {
+    return { bytes, mimeType: normalizedMimeType };
+  }
+
+  const temporaryDirectory = path.join(tmpdir(), `kudalabs-meeting-${randomUUID()}`);
+  const inputPath = path.join(temporaryDirectory, `input.${audioExtension(mimeType)}`);
+  const outputPath = path.join(temporaryDirectory, "normalized.mp3");
+
+  try {
+    await mkdir(temporaryDirectory, { recursive: true });
+    await writeFile(inputPath, bytes, { mode: 0o600 });
+    await execFileAsync("ffmpeg", [
+      "-hide_banner",
+      "-loglevel",
+      "error",
+      "-y",
+      "-i",
+      inputPath,
+      "-vn",
+      "-ac",
+      "1",
+      "-ar",
+      "16000",
+      "-c:a",
+      "libmp3lame",
+      "-b:a",
+      "48k",
+      outputPath
+    ], { timeout: 120_000 });
+
+    const normalizedBytes = await readFile(outputPath);
+    if (!normalizedBytes.length) {
+      throw new Error("ffmpeg returned an empty audio file");
+    }
+
+    return { bytes: normalizedBytes, mimeType: "audio/mp3" };
+  } catch (error) {
+    console.error("Meeting audio normalization failed", {
+      mimeType,
+      size: bytes.length,
+      error: error instanceof Error ? error.message : "unknown error"
+    });
+    throw new GeminiApiError(
+      "현재 브라우저 녹음 형식을 전사 가능한 MP3로 변환하지 못했습니다. 잠시 후 다시 녹음해 주세요.",
+      415
+    );
+  } finally {
+    await rm(temporaryDirectory, { recursive: true, force: true }).catch(() => undefined);
+  }
 }
 
 export const POST = withAuth(async (request, _context, user) => {
@@ -92,7 +149,17 @@ export const POST = withAuth(async (request, _context, user) => {
   }
 
   const bytes = Buffer.from(await file.arrayBuffer());
-  const model = process.env.GEMINI_MODEL || "gemini-3.5-flash";
+  let preparedAudio: { bytes: Buffer; mimeType: string };
+  try {
+    preparedAudio = await prepareAudioForGemini(bytes, file.type);
+  } catch (error) {
+    if (error instanceof GeminiApiError) {
+      return NextResponse.json({ ok: false, message: error.message }, { status: error.status });
+    }
+
+    console.error("Meeting audio preparation failed", error);
+    return NextResponse.json({ ok: false, message: "회의 음성 파일을 준비하지 못했습니다. 잠시 후 다시 시도해 주세요." }, { status: 415 });
+  }
   const prompt = `
 이 음성 녹음을 한국어 회의록 초안으로 전사하세요.
 들리지 않는 부분은 [불명확]으로 표시하고, 추측으로 내용을 만들지 마세요.
@@ -100,36 +167,21 @@ export const POST = withAuth(async (request, _context, user) => {
 인사말이나 설명 없이 전사 본문만 반환하세요.
 `;
 
-  const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-goog-api-key": apiKey
-    },
-    body: JSON.stringify({
-      contents: [
-        {
-          parts: [
-            {
-              inline_data: {
-                mime_type: file.type.split(";")[0],
-                data: bytes.toString("base64")
-              }
-            },
-            { text: prompt }
-          ]
-        }
-      ],
-      generationConfig: { temperature: 0.1 }
-    })
-  });
+  let transcript: string;
+  try {
+    transcript = cleanText(await generateTextFromMedia({
+      data: preparedAudio.bytes.toString("base64"),
+      mimeType: preparedAudio.mimeType,
+      prompt
+    }));
+  } catch (error) {
+    if (error instanceof GeminiApiError) {
+      return NextResponse.json({ ok: false, message: error.message }, { status: error.status });
+    }
 
-  if (!response.ok) {
-    const details = await response.text();
-    return NextResponse.json({ ok: false, message: "회의 음성 전사 API 호출에 실패했습니다.", details }, { status: response.status });
+    console.error("Meeting transcription failed", error);
+    return NextResponse.json({ ok: false, message: "회의 음성 전사 API 호출에 실패했습니다. 잠시 후 다시 시도해 주세요." }, { status: 502 });
   }
-
-  const transcript = cleanText(extractText(await response.json()));
 
   if (!transcript) {
     return NextResponse.json({ ok: false, message: "음성에서 전사할 내용을 찾지 못했습니다." }, { status: 502 });

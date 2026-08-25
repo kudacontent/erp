@@ -7,7 +7,7 @@ export const runtime = "nodejs";
 export const POST = withAuth(async () => {
   try {
     const result = await syncGoogleCalendar();
-    return NextResponse.json({ ok: true, ...result, message: `${result.syncedCount}건의 Google 일정을 동기화했습니다.` });
+    return NextResponse.json({ ok: true, ...result, message: `${result.calendarCount}개 캘린더에서 ${result.syncedCount}건의 Google 일정을 동기화했습니다.` });
   } catch (error) {
     if (error instanceof GoogleCalendarError) {
       return NextResponse.json({ ok: false, message: error.message, code: error.code }, { status: error.status });
