@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { Search } from "lucide-react";
+import { StatusBadge } from "@/components/ui/status-badge";
 
 type ContractListItem = {
   slug: string;
@@ -17,18 +18,6 @@ type ContractListItem = {
   due: string;
   status: string;
 };
-
-function statusClass(value: string) {
-  if (["입금 완료", "완료", "발행 완료"].includes(value)) {
-    return "bg-[#e8f5fb] text-marine";
-  }
-
-  if (["지연", "확인"].includes(value)) {
-    return "bg-[#e5eef5] text-[#075985]";
-  }
-
-  return "bg-paper text-steel";
-}
 
 function matchesStatus(contract: ContractListItem, selectedStatus: string) {
   if (selectedStatus === "전체") {
@@ -143,14 +132,10 @@ export function FilterableContractsTable({
                     <p className="mt-1 text-xs text-steel">공급 {contract.supply} / VAT {contract.vat}</p>
                   </td>
                   <td className="px-4 py-4">
-                    <span className={`rounded-md px-2 py-1 text-xs font-medium ${statusClass(contract.billing)}`}>
-                      {contract.billing}
-                    </span>
+                    <StatusBadge status={contract.billing} />
                   </td>
                   <td className="px-4 py-4">
-                    <span className={`rounded-md px-2 py-1 text-xs font-medium ${statusClass(contract.payment)}`}>
-                      {contract.payment}
-                    </span>
+                    <StatusBadge status={contract.payment} />
                   </td>
                   <td className="px-4 py-4 text-steel">{contract.due}</td>
                 </tr>

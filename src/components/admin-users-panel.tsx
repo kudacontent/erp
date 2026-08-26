@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { KeyRound, Loader2, Plus, RefreshCw, ShieldCheck, UserRoundCog } from "lucide-react";
+import { TONE_BADGE_CLASS } from "@/lib/status-tone";
 
 type Role = "CEO" | "ADMIN" | "OPERATIONS" | "ACCOUNTING" | "HR" | "EMPLOYEE" | "AUDITOR";
 type Status = "ACTIVE" | "INACTIVE" | "ARCHIVED";
@@ -170,7 +171,7 @@ export function AdminUsersPanel({ currentUserRole }: { currentUserRole: Role }) 
                     <td className="px-5 py-4 font-bold text-ink">{user.name}</td>
                     <td className="px-5 py-4 text-steel">{user.email}</td>
                     <td className="px-5 py-4"><select value={user.role} disabled={user.role === "CEO" && currentUserRole !== "CEO"} onChange={(event) => void updateUser(user, { role: event.target.value as Role })} className="rounded-md border border-line bg-paper px-2 py-1.5 text-sm text-ink"><option value="CEO">{roleLabels.CEO}</option>{roleOptions.map((role) => <option key={role} value={role}>{roleLabels[role]}</option>)}</select></td>
-                    <td className="px-5 py-4"><button type="button" onClick={() => void updateUser(user, { status: user.status === "ACTIVE" ? "INACTIVE" : "ACTIVE" })} disabled={user.role === "CEO" && currentUserRole !== "CEO"} className={user.status === "ACTIVE" ? "rounded-md bg-[#ecfdf3] px-2 py-1 text-xs font-bold text-[#027a48]" : "rounded-md bg-paper px-2 py-1 text-xs font-bold text-steel"}>{statusLabels[user.status]}</button></td>
+                    <td className="px-5 py-4"><button type="button" onClick={() => void updateUser(user, { status: user.status === "ACTIVE" ? "INACTIVE" : "ACTIVE" })} disabled={user.role === "CEO" && currentUserRole !== "CEO"} className={`rounded-md px-2 py-1 text-xs font-bold transition-colors ${user.status === "ACTIVE" ? TONE_BADGE_CLASS.success : TONE_BADGE_CLASS.neutral}`} title={user.status === "ACTIVE" ? "클릭하면 비활성으로 전환합니다" : "클릭하면 활성으로 전환합니다"}>{statusLabels[user.status]}</button></td>
                     <td className="px-5 py-4"><button type="button" onClick={() => void resetPassword(user)} className="text-sm font-medium text-marine hover:underline">비밀번호 재설정</button></td>
                   </tr>
                 ))}

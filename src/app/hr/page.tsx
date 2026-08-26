@@ -1,17 +1,6 @@
 import { BadgeCheck, BriefcaseBusiness, FilePlus2, Mail, Phone, Search, UserRoundCog } from "lucide-react";
 import { certificateRequests, departmentSummary, employees, hrInterviews, hrStats } from "@/lib/hr-data";
-
-function statusClass(status: string) {
-  if (["재직", "발급 완료"].includes(status)) {
-    return "bg-[#e8f5fb] text-marine";
-  }
-
-  if (["휴직", "검토", "처리 대기"].includes(status)) {
-    return "bg-[#e5eef5] text-[#075985]";
-  }
-
-  return "bg-paper text-steel";
-}
+import { StatusBadge } from "@/components/ui/status-badge";
 
 export default function HrPage() {
   return (
@@ -92,9 +81,7 @@ export default function HrPage() {
                       </div>
                     </td>
                     <td className="px-4 py-4">
-                      <span className={`rounded-md px-2 py-1 text-xs font-medium ${statusClass(employee.status)}`}>
-                        {employee.status}
-                      </span>
+                      <StatusBadge status={employee.status} />
                     </td>
                   </tr>
                 ))}
@@ -130,7 +117,7 @@ export default function HrPage() {
                   <p className="text-sm font-medium text-ink">{item.type}</p>
                   <div className="mt-2 flex items-center justify-between text-xs text-steel">
                     <span>{item.employee}</span>
-                    <span className={`rounded-md px-2 py-1 ${statusClass(item.status)}`}>{item.status}</span>
+                    <StatusBadge status={item.status} />
                   </div>
                 </div>
               ))}

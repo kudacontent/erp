@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { Search } from "lucide-react";
+import { StatusBadge } from "@/components/ui/status-badge";
 
 type MeetingListItem = {
   id: string;
@@ -13,18 +14,6 @@ type MeetingListItem = {
   status: string;
   minutes: string;
 };
-
-function meetingStatusClass(status: string) {
-  if (["완료", "후속 조치"].includes(status)) {
-    return "bg-[#e8f5fb] text-marine";
-  }
-
-  if (["진행 중", "예정"].includes(status)) {
-    return "bg-[#e5eef5] text-[#075985]";
-  }
-
-  return "bg-paper text-steel";
-}
 
 export function FilterableMeetingsTable({
   meetings,
@@ -113,9 +102,7 @@ export function FilterableMeetingsTable({
                   <td className="px-4 py-4 text-steel">{meeting.time}</td>
                   <td className="px-4 py-4 text-steel">{meeting.attendees}</td>
                   <td className="px-4 py-4">
-                    <span className={`rounded-md px-2 py-1 text-xs font-medium ${meetingStatusClass(meeting.status)}`}>
-                      {meeting.status}
-                    </span>
+                    <StatusBadge status={meeting.status} />
                   </td>
                 </tr>
               ))

@@ -1,9 +1,6 @@
 import { Bell, CheckCircle2, Search } from "lucide-react";
 import { notificationFilters, notifications, notificationStats } from "@/lib/notifications-data";
-
-function statusClass(status: string) {
-  return status === "미확인" ? "bg-[#e5eef5] text-[#075985]" : "bg-paper text-steel";
-}
+import { StatusBadge } from "@/components/ui/status-badge";
 
 export default function NotificationsPage() {
   return (
@@ -59,9 +56,7 @@ export default function NotificationsPage() {
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
                       <p className="font-bold text-ink">{notification.title}</p>
-                      <span className={`rounded-md px-2 py-1 text-xs font-medium ${statusClass(notification.status)}`}>
-                        {notification.status}
-                      </span>
+                      <StatusBadge status={notification.status} />
                     </div>
                     <p className="mt-2 text-sm text-steel">{notification.body}</p>
                     <p className="mt-2 text-xs text-steel">{notification.type} · {notification.target}</p>
