@@ -1,0 +1,14 @@
+node_modules
+.pnpm-store
+.next
+out
+dist
+.env
+.env*.local
+coverage
+*.log
+.DS_Store
+uploads
+backups
+postgres-data
+redis-data

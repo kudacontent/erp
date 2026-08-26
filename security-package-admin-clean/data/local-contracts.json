@@ -1,0 +1,17 @@
+{
+  "contracts": [
+    {
+      "slug": "con-20260609-mmif",
+      "id": "CON-20260609-MMIF",
+      "client": "블루텍 장비",
+      "title": "로컬 저장 검증 API 045646",
+      "supply": "500만원",
+      "vat": "50만원",
+      "total": "550만원",
+      "billing": "발행 대기",
+      "payment": "미입금",
+      "due": "2026-06-30",
+      "status": "검토"
+    }
+  ]
+}

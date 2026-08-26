@@ -1,0 +1,13 @@
+.git
+.next
+node_modules
+.pnpm-store
+postgres-data
+redis-data
+uploads
+backups
+*.log
+.env
+.env.*
+.env*.local
+.DS_Store
