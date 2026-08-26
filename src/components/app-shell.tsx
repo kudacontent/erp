@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Bell, LogOut, Menu, Search, ServerCog } from "lucide-react";
+import { Bell, LogOut, Menu, Search, ServerCog, Settings } from "lucide-react";
 import { modules } from "@/lib/dashboard-data";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
@@ -30,6 +30,20 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     return <>{children}</>;
   }
 
+  const navigationModules =
+    user?.role === "CEO" || user?.role === "ADMIN"
+      ? [
+          ...modules,
+          {
+            title: "관리자",
+            href: "/admin",
+            icon: Settings,
+            metric: "계정·권한",
+            description: "직원 계정과 역할, 접근 상태를 관리합니다."
+          }
+        ]
+      : modules;
+
   return (
     <div className="min-h-screen bg-paper text-ink">
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 border-r border-[#0f3f5e] bg-[#092235] px-5 py-6 lg:block">
@@ -39,7 +53,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </Link>
 
         <nav className="mt-8 space-y-1">
-          {modules.map((module) => {
+          {navigationModules.map((module) => {
             const active = pathname === module.href || pathname.startsWith(`${module.href}/`);
 
             return (
