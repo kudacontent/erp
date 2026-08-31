@@ -2,7 +2,10 @@
 
 import { Fragment, useEffect, useMemo, useState } from "react";
 import type { ChangeEvent } from "react";
-import { Download, Plus, Printer, RotateCcw, Save, Trash2, Upload } from "lucide-react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { Download, List, Loader2, Plus, Printer, RotateCcw, Save, Trash2, Upload } from "lucide-react";
+import type { EstimateForEdit } from "@/lib/estimates-service";
 
 type EstimateRow = {
   id: string;
@@ -20,6 +23,8 @@ type EstimateSection = {
 
 type EstimateForm = {
   date: string;
+  clientId: string;
+  status: EstimateStatus;
   recipient: string;
   reference: string;
   title: string;
@@ -35,6 +40,17 @@ type EstimateForm = {
   sections: EstimateSection[];
 };
 
+type EstimateStatus = "DRAFT" | "SENT" | "ACCEPTED" | "REJECTED" | "EXPIRED";
+
+const STATUS_OPTIONS: Array<{ value: EstimateStatus; label: string }> = [
+  { value: "DRAFT", label: "작성 중" },
+  { value: "SENT", label: "발송" },
+  { value: "ACCEPTED", label: "수주 확정" },
+  { value: "REJECTED", label: "실주" },
+  { value: "EXPIRED", label: "기한 만료" }
+];
+
+/** 저장 전 새 견적서만 브라우저에 임시 보관한다. 저장하고 나면 DB 가 원본이다 */
 const storageKey = "kudalabs-estimate-draft-v1";
 const paperInputClass = "min-w-0 rounded-sm border-0 bg-transparent p-0 text-inherit outline-none transition placeholder:text-gray-400 focus:bg-edit-bg focus:ring-1 focus:ring-edit-ring";
 const paperBlockInputClass = `${paperInputClass} w-full`;
@@ -42,6 +58,8 @@ const paperNumberInputClass = `${paperInputClass} w-full text-right tabular-nums
 
 const initialEstimate: EstimateForm = {
   date: "",
+  clientId: "",
+  status: "DRAFT",
   recipient: "",
   reference: "",
   title: "견적 프로젝트",
@@ -84,12 +102,82 @@ function escapeCsv(value: string | number) {
   return `"${String(value).replaceAll('"', '""')}"`;
 }
 
-export function EstimateWorkspace() {
-  const [form, setForm] = useState<EstimateForm>(cloneInitialEstimate);
+/**
+ * DB 에 저장된 견적서를 화면 형태(부문 → 행)로 되돌린다.
+ *
+ * DB 에는 품목이 한 줄씩 평평하게 들어 있고 부문은 각 품목의 section 문자열이다.
+ * 표를 그릴 때는 다시 부문별로 묶어야 하므로 여기서 순서를 지키며 그룹핑한다.
+ */
+function fromSaved(estimate: EstimateForEdit): EstimateForm {
+  const base = cloneInitialEstimate();
+  const sections: EstimateSection[] = [];
+
+  estimate.items.forEach((item) => {
+    const title = item.section || "견적 내역";
+    let section = sections.find((candidate) => candidate.title === title);
+
+    if (!section) {
+      section = { id: createId("section"), title, rows: [] };
+      sections.push(section);
+    }
+
+    section.rows.push({
+      id: item.id,
+      item: item.name,
+      spec: item.spec || "-",
+      quantity: item.quantity,
+      unitPrice: item.unitPrice
+    });
+  });
+
+  return {
+    ...base,
+    date: estimate.issuedAt,
+    clientId: estimate.clientId ?? "",
+    status: (estimate.status === "CONVERTED" ? "ACCEPTED" : estimate.status) as EstimateStatus,
+    recipient: estimate.recipient || estimate.clientName || "",
+    reference: estimate.reference,
+    title: estimate.title,
+    supplierNumber: estimate.supplierNumber || base.supplierNumber,
+    supplierName: estimate.supplierName || base.supplierName,
+    supplierRepresentative: estimate.supplierRepresentative || base.supplierRepresentative,
+    supplierAddress: estimate.supplierAddress || base.supplierAddress,
+    supplierPhone: estimate.supplierPhone || base.supplierPhone,
+    supplierEmail: estimate.supplierEmail || base.supplierEmail,
+    validity: estimate.validityNote || base.validity,
+    otherContent: estimate.otherContent,
+    sections: sections.length ? sections : base.sections
+  };
+}
+
+type EstimateWorkspaceProps = {
+  /** 기존 견적서를 여는 경우. 없으면 새 견적서 */
+  estimate?: EstimateForEdit | null;
+  /** 거래처 연결 선택지 */
+  clients?: Array<{ id: string; name: string }>;
+  /** 저장 권한이 없으면 보기·인쇄만 가능하다 */
+  canEdit?: boolean;
+};
+
+export function EstimateWorkspace({ estimate = null, clients = [], canEdit = true }: EstimateWorkspaceProps) {
+  const router = useRouter();
+  const [form, setForm] = useState<EstimateForm>(() => (estimate ? fromSaved(estimate) : cloneInitialEstimate()));
+  const [savedId, setSavedId] = useState<string | null>(estimate?.id ?? null);
   const [ready, setReady] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
+  const [error, setError] = useState("");
+
+  const converted = Boolean(estimate?.contractId);
+  const editable = canEdit && !converted;
 
   useEffect(() => {
+    // 저장된 견적서를 열었으면 DB 값이 원본이다. 브라우저 임시본은 건드리지 않는다
+    if (estimate) {
+      setReady(true);
+      return;
+    }
+
     const raw = window.localStorage.getItem(storageKey);
 
     if (raw) {
@@ -106,7 +194,7 @@ export function EstimateWorkspace() {
     }
 
     setReady(true);
-  }, []);
+  }, [estimate]);
 
   const totals = useMemo(() => {
     const supply = form.sections.reduce(
@@ -177,9 +265,101 @@ export function EstimateWorkspace() {
     }));
   }
 
-  function saveDraft() {
+  /** 화면의 부문·행을 서버가 받는 평평한 품목 배열로 바꾼다 */
+  function toItems() {
+    return form.sections.flatMap((section) =>
+      section.rows
+        .filter((row) => row.item.trim().length > 0)
+        .map((row) => ({
+          section: section.title.trim() || null,
+          name: row.item.trim(),
+          spec: row.spec.trim() || null,
+          unit: null,
+          quantity: Math.max(0, row.quantity),
+          unitPrice: Math.max(0, row.unitPrice),
+          taxType: "TAXABLE" as const,
+          memo: null
+        }))
+    );
+  }
+
+  /**
+   * 서버에 저장한다.
+   *
+   * 새 견적서면 POST 로 만들고 견적번호를 받아 그 주소로 이동한다.
+   * 이미 저장된 견적서면 PUT 으로 표 전체를 덮어쓴다.
+   */
+  async function save() {
+    const items = toItems();
+
+    if (!form.title.trim()) {
+      setError("견적서 제목을 입력하세요.");
+      return;
+    }
+
+    if (items.length === 0) {
+      setError("품명이 입력된 항목이 최소 하나는 있어야 합니다.");
+      return;
+    }
+
+    setSaving(true);
+    setError("");
+    setMessage("");
+
+    const payload = {
+      title: form.title.trim(),
+      clientId: form.clientId || null,
+      recipient: form.recipient.trim() || null,
+      reference: form.reference.trim() || null,
+      status: form.status,
+      issuedAt: form.date || null,
+      validityNote: form.validity.trim() || null,
+      otherContent: form.otherContent.trim() || null,
+      supplierNumber: form.supplierNumber.trim() || null,
+      supplierName: form.supplierName.trim() || null,
+      supplierRepresentative: form.supplierRepresentative.trim() || null,
+      supplierAddress: form.supplierAddress.trim() || null,
+      supplierPhone: form.supplierPhone.trim() || null,
+      supplierEmail: form.supplierEmail.trim() || null,
+      items
+    };
+
+    try {
+      const response = await fetch(savedId ? `/api/estimates/${savedId}` : "/api/estimates", {
+        method: savedId ? "PUT" : "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || !data.ok) {
+        const firstFieldError = data.errors ? Object.values(data.errors as Record<string, string[]>)[0]?.[0] : null;
+        setError(data.message ?? firstFieldError ?? "저장하지 못했습니다.");
+        return;
+      }
+
+      if (!savedId) {
+        // 새로 만든 견적은 브라우저 임시본을 비우고 저장된 주소로 옮긴다
+        window.localStorage.removeItem(storageKey);
+        setSavedId(data.estimate.id);
+        router.replace(`/documents/estimate/${data.estimate.id}`);
+        return;
+      }
+
+      setMessage(`${data.estimate.estimateNo} 견적서를 저장했습니다.`);
+      router.refresh();
+    } catch {
+      setError("저장 중 문제가 발생했습니다.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  /** 저장 전 새 견적서를 브라우저에 임시 보관한다 (탭을 닫아도 남도록) */
+  function keepDraft() {
     window.localStorage.setItem(storageKey, JSON.stringify(form));
-    setMessage("견적서 초안을 이 브라우저에 저장했습니다.");
+    setMessage("이 브라우저에 임시 보관했습니다. 다른 사람이 보려면 '저장'을 누르세요.");
   }
 
   function resetDraft() {
@@ -189,7 +369,9 @@ export function EstimateWorkspace() {
 
     window.localStorage.removeItem(storageKey);
     setForm(cloneInitialEstimate());
+    setSavedId(null);
     setMessage("새 견적서 양식을 열었습니다.");
+    router.push("/documents/estimate/new");
   }
 
   function handleStampUpload(event: ChangeEvent<HTMLInputElement>) {
@@ -227,23 +409,41 @@ export function EstimateWorkspace() {
   return (
     <div className="estimate-workspace document-workspace">
       <div className="document-toolbar mb-4 flex flex-wrap items-center gap-2 rounded-md border border-line bg-white p-3">
-        <button type="button" onClick={saveDraft} className="inline-flex items-center gap-2 rounded-md bg-marine px-3 py-2 text-sm font-medium text-white">
-          <Save className="h-4 w-4" />
-          내용 저장
-        </button>
-        <button type="button" onClick={resetDraft} className="inline-flex items-center gap-2 rounded-md border border-line bg-white px-3 py-2 text-sm font-medium text-ink">
-          <RotateCcw className="h-4 w-4" />
-          새로 작성
-        </button>
-        <label className="inline-flex cursor-pointer items-center gap-2 rounded-md border border-line bg-white px-3 py-2 text-sm font-medium text-ink">
-          <Upload className="h-4 w-4 text-marine" />
-          도장 등록
-          <input type="file" accept="image/*" className="sr-only" onChange={handleStampUpload} />
-        </label>
-        <button type="button" onClick={addSection} className="inline-flex items-center gap-2 rounded-md border border-line bg-white px-3 py-2 text-sm font-medium text-ink">
-          <Plus className="h-4 w-4 text-marine" />
-          부문 추가
-        </button>
+        <Link href="/documents/estimate" className="inline-flex items-center gap-2 rounded-md border border-line bg-white px-3 py-2 text-sm font-medium text-ink">
+          <List className="h-4 w-4 text-marine" />
+          견적서 목록
+        </Link>
+        {editable ? (
+          <button type="button" onClick={save} disabled={saving} className="inline-flex items-center gap-2 rounded-md bg-marine px-3 py-2 text-sm font-medium text-white disabled:opacity-60">
+            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+            {savedId ? "저장" : "저장하고 등록"}
+          </button>
+        ) : null}
+        {editable && !savedId ? (
+          <button type="button" onClick={keepDraft} className="inline-flex items-center gap-2 rounded-md border border-line bg-white px-3 py-2 text-sm font-medium text-ink">
+            <Save className="h-4 w-4 text-steel" />
+            임시 보관
+          </button>
+        ) : null}
+        {editable ? (
+          <button type="button" onClick={resetDraft} className="inline-flex items-center gap-2 rounded-md border border-line bg-white px-3 py-2 text-sm font-medium text-ink">
+            <RotateCcw className="h-4 w-4" />
+            새로 작성
+          </button>
+        ) : null}
+        {editable ? (
+          <label className="inline-flex cursor-pointer items-center gap-2 rounded-md border border-line bg-white px-3 py-2 text-sm font-medium text-ink">
+            <Upload className="h-4 w-4 text-marine" />
+            도장 등록
+            <input type="file" accept="image/*" className="sr-only" onChange={handleStampUpload} />
+          </label>
+        ) : null}
+        {editable ? (
+          <button type="button" onClick={addSection} className="inline-flex items-center gap-2 rounded-md border border-line bg-white px-3 py-2 text-sm font-medium text-ink">
+            <Plus className="h-4 w-4 text-marine" />
+            부문 추가
+          </button>
+        ) : null}
         <button type="button" onClick={() => window.print()} className="inline-flex items-center gap-2 rounded-md bg-danger-fg px-3 py-2 text-sm font-medium text-white">
           <Printer className="h-4 w-4" />
           PDF / 인쇄
@@ -252,8 +452,44 @@ export function EstimateWorkspace() {
           <Download className="h-4 w-4" />
           Excel 다운로드
         </button>
-        <p className="w-full text-xs text-steel sm:ml-auto sm:w-auto">노란색으로 강조된 문서 안의 항목을 직접 입력하세요.</p>
-        {message ? <p className="w-full text-xs font-medium text-marine sm:w-auto">{message}</p> : null}
+        {editable ? (
+          <div className="flex w-full flex-wrap items-center gap-2 sm:ml-auto sm:w-auto">
+            <label className="inline-flex items-center gap-2 text-sm text-steel">
+              거래처
+              <select
+                value={form.clientId}
+                onChange={(event) => updateField("clientId", event.target.value)}
+                className="rounded-md border border-line bg-paper px-2 py-1.5 text-sm text-ink outline-none focus:border-marine"
+              >
+                <option value="">연결 안 함</option>
+                {clients.map((client) => (
+                  <option key={client.id} value={client.id}>{client.name}</option>
+                ))}
+              </select>
+            </label>
+            <label className="inline-flex items-center gap-2 text-sm text-steel">
+              상태
+              <select
+                value={form.status}
+                onChange={(event) => updateField("status", event.target.value as EstimateStatus)}
+                className="rounded-md border border-line bg-paper px-2 py-1.5 text-sm text-ink outline-none focus:border-marine"
+              >
+                {STATUS_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>{option.label}</option>
+                ))}
+              </select>
+            </label>
+          </div>
+        ) : null}
+
+        <p className="w-full text-xs text-steel">
+          {converted
+            ? "계약으로 전환된 견적서입니다. 금액을 바꾸려면 연결된 계약에서 수정하세요."
+            : "노란색으로 강조된 문서 안의 항목을 직접 입력하세요."}
+        </p>
+        {estimate ? <p className="w-full text-xs font-medium text-steel">견적번호 {estimate.estimateNo}</p> : null}
+        {message ? <p className="w-full text-xs font-medium text-marine">{message}</p> : null}
+        {error ? <p className="w-full rounded-md border border-danger-border bg-danger-bg px-3 py-2 text-xs font-medium text-danger-fg">{error}</p> : null}
       </div>
 
       <section className="document-preview-pane min-w-0 overflow-x-auto rounded-md border border-line bg-surface-subtle p-2 sm:p-4">

@@ -105,6 +105,7 @@ model User {
   auditLogs     AuditLog[]
   notifications Notification[]
   taxInvoices   TaxInvoice[]   @relation("TaxInvoiceCreatedBy")
+  estimates     Estimate[]     @relation("EstimateCreatedBy")
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
 }
@@ -142,6 +143,7 @@ model Client {
   tags           Json?
   contacts       ClientContact[]
   contracts      ProjectContract[]
+  estimates      Estimate[]
   expenses       Expense[]
   taxInvoices    TaxInvoice[]
   meetings       Meeting[]
@@ -177,6 +179,8 @@ model ProjectContract {
   contractAmount BigInt
   vatAmount      BigInt
   totalAmount    BigInt
+  items          ContractItem[]
+  estimates      Estimate[]
   billingStatus  BillingStatus   @default(PENDING)
   paymentStatus  PaymentStatus   @default(UNPAID)
   contractStatus ContractStatus  @default(DRAFT)
@@ -190,6 +194,124 @@ model ProjectContract {
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
 }
+
+/// 계약 품목.
+///
+/// 계약 하나에 무엇을 얼마에 파는지가 담긴다. 개수 제한은 없다.
+/// 계약의 contractAmount / vatAmount / totalAmount 는 이 품목들의 합계로 계산한다.
+///
+/// 세금계산서로 전개할 때 TaxInvoiceItem 으로 그대로 넘어간다.
+model ContractItem {
+  id           String          @id @default(uuid())
+  contractId   String
+  contract     ProjectContract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  sortOrder    Int             @default(0)
+  name         String
+  spec         String?
+  unit         String?
+  quantity     Decimal         @default(1) @db.Decimal(14, 2)
+  unitPrice    BigInt          @default(0)
+  supplyAmount BigInt          @default(0)
+  vatAmount    BigInt          @default(0)
+  taxType      TaxType         @default(TAXABLE)
+  memo         String?
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+
+  @@index([contractId, sortOrder])
+}
+
+enum TaxType {
+  TAXABLE
+  ZERO_RATED
+  EXEMPT
+}
+
+/// 견적 상태.
+///
+/// 실무에서 견적서는 계약보다 훨씬 자주 쓰이고, 대부분은 계약으로 이어지지 않는다.
+/// 그래서 "보냈는지 / 성사됐는지" 를 계약과 따로 관리한다.
+///
+/// CONVERTED 는 이 견적이 계약으로 전개된 상태다 (contractId 가 채워진다).
+enum EstimateStatus {
+  DRAFT
+  SENT
+  ACCEPTED
+  REJECTED
+  EXPIRED
+  CONVERTED
+}
+
+/// 견적서.
+///
+/// 그동안 견적서 화면은 브라우저 localStorage 에만 저장돼서
+/// 다른 사람이 볼 수도, 지난 견적을 다시 찾을 수도 없었다.
+/// 이제 DB 에 남기고, 성사되면 계약으로 그대로 전개한다.
+///
+/// 거래처가 아직 등록되지 않은 상대에게도 견적을 내야 하므로
+/// clientId 는 선택이고, recipient 에 받는 곳 이름을 직접 적을 수 있다.
+///
+/// 공급자(우리 회사) 정보를 함께 저장하는 이유:
+/// 주소나 대표자가 바뀌어도 예전에 보낸 견적서를 그때 모습 그대로 다시 인쇄해야 한다.
+model Estimate {
+  id                      String           @id @default(uuid())
+  estimateNo              String           @unique
+  title                   String
+  clientId                String?
+  client                  Client?          @relation(fields: [clientId], references: [id])
+  recipient               String?
+  reference               String?
+  status                  EstimateStatus   @default(DRAFT)
+  issuedAt                DateTime?
+  validUntil              DateTime?
+  validityNote            String?
+  supplyAmount            BigInt           @default(0)
+  vatAmount               BigInt           @default(0)
+  totalAmount             BigInt           @default(0)
+  otherContent            String?
+  supplierNumber          String?
+  supplierName            String?
+  supplierRepresentative  String?
+  supplierAddress         String?
+  supplierPhone           String?
+  supplierEmail           String?
+  memo                    String?
+  contractId              String?
+  contract                ProjectContract? @relation(fields: [contractId], references: [id])
+  createdById             String?
+  createdBy               User?            @relation("EstimateCreatedBy", fields: [createdById], references: [id])
+  items                   EstimateItem[]
+  createdAt               DateTime         @default(now())
+  updatedAt               DateTime         @updatedAt
+
+  @@index([clientId])
+  @@index([status, issuedAt])
+}
+
+/// 견적 품목.
+///
+/// section 은 견적서의 "부문" 제목이다 (예: 용역 범위 / 유지보수).
+/// 부문을 별도 표로 두지 않고 품목에 이름을 달아 묶는다 —
+/// 부문은 순서와 제목만 있으면 되고, 표가 하나 더 늘면 전개할 때만 복잡해진다.
+model EstimateItem {
+  id           String   @id @default(uuid())
+  estimateId   String
+  estimate     Estimate @relation(fields: [estimateId], references: [id], onDelete: Cascade)
+  section      String?
+  sortOrder    Int      @default(0)
+  name         String
+  spec         String?
+  unit         String?
+  quantity     Decimal  @default(1) @db.Decimal(14, 2)
+  unitPrice    BigInt   @default(0)
+  supplyAmount BigInt   @default(0)
+  vatAmount    BigInt   @default(0)
+  taxType      TaxType  @default(TAXABLE)
+  memo         String?
+
+  @@index([estimateId, sortOrder])
+}
+
 
 model Expense {
   id              String         @id @default(uuid())

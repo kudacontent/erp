@@ -2,13 +2,29 @@ import { FilePlus2 } from "lucide-react";
 import Link from "next/link";
 import { FilterableContractsTable } from "@/components/filterable-contracts-table";
 import { getContractsForList } from "@/lib/contracts-service";
+import { getCurrentUser } from "@/lib/auth";
+import { redirect } from "next/navigation";
 
 // 이 화면은 등록 즉시 목록에 반영되어야 한다.
 // 이 선언이 없으면 Next.js 가 빌드 시점 DB 스냅샷으로 페이지를 구워 정적 파일로 서빙하고,
 // 이후 새로 등록한 데이터가 재빌드 전까지 화면에 나타나지 않는다.
 export const dynamic = "force-dynamic";
 
+// 회사의 돈에 관한 화면이다. 권한이 없으면 대시보드로 돌려보낸다.
+const FINANCE_ROLES = ["CEO", "ADMIN", "ACCOUNTING", "OPERATIONS", "AUDITOR"];
+
+
 export default async function ContractsPage() {
+  const user = await getCurrentUser();
+
+  if (!user) {
+    redirect("/login?next=/contracts");
+  }
+
+  if (!FINANCE_ROLES.includes(user.role)) {
+    redirect("/");
+  }
+
   const contracts = await getContractsForList();
   const stats = [
     { label: "등록 계약", value: `${contracts.length}건`, amount: "운영 데이터 기준" },

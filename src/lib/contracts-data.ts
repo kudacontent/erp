@@ -27,34 +27,51 @@ export function getContractBySlug(_slug: string) {
 
 export const contractFiles: Array<{ name: string; type: string; date: string }> = [];
 
+/**
+ * 계약 상세에서 이어서 할 수 있는 일.
+ *
+ * 이전에는 계약서·지출결의서·세금계산서 요청서가 각각 별도 화면으로 있었는데
+ * 입력칸에 value/onChange 도 저장 버튼도 없는 껍데기였다. 타이핑해도 사라졌다.
+ * 실제로 동작하는 화면으로만 연결한다.
+ */
+/**
+ * 계약에서 이어서 열 수 있는 화면들.
+ *
+ * slug 를 받는 이유: 세금계산서 화면은 ?contractId= 로 넘어가면
+ * 거래처와 계약 품목을 미리 채워 준다. 계약에서 출발했다는 사실을 잃지 않게 한다.
+ */
+export function getContractDocuments(slug: string) {
+  return contractDocuments.map((document) =>
+    document.title === "세금계산서"
+      ? { ...document, href: `/tax-invoices?contractId=${slug}` }
+      : document
+  );
+}
+
 export const contractDocuments = [
   {
     title: "견적서",
-    description: "공급가액, 부가세, 작업 범위 기준으로 견적서를 생성합니다.",
-    status: "작성 가능",
+    description: "품목과 금액을 넣어 견적서를 작성하고 PDF로 출력합니다.",
     action: "견적서 열기",
-    href: "quote"
+    href: "/documents/estimate"
   },
   {
-    title: "계약서",
-    description: "거래처, 계약금액, 정산 조건, 작업 범위를 반영합니다.",
-    status: "검토 필요",
-    action: "계약서 작성",
-    href: "contract"
+    title: "인보이스",
+    description: "청구 항목과 지급 정보를 담은 인보이스를 작성합니다.",
+    action: "인보이스 열기",
+    href: "/documents/invoice"
   },
   {
-    title: "지출결의서",
-    description: "계약과 연결된 장비비, 출장비, 외주비 지출 결의를 작성합니다.",
-    status: "대기",
-    action: "지출결의서 작성",
-    href: "expense-resolution"
+    title: "세금계산서",
+    description: "공급가액과 부가세를 검수한 뒤 바로빌로 발행을 요청합니다.",
+    action: "세금계산서 발행",
+    href: "/tax-invoices"
   },
   {
-    title: "세금계산서 발행 요청서",
-    description: "공급가액과 부가세를 기준으로 발행 요청 정보를 정리합니다.",
-    status: "발행 대기",
-    action: "요청서 작성",
-    href: "tax-invoice-request"
+    title: "지출 등록",
+    description: "이 계약과 관련된 장비비·출장비·외주비를 지출로 등록합니다.",
+    action: "지출 화면으로",
+    href: "/expenses"
   }
 ];
 
@@ -80,54 +97,27 @@ export function getContractLifecycle(contract: ContractRecord) {
 export function getContractNextActions(contract: ContractRecord) {
   if (contract.payment === "입금 완료") {
     return [
-      { label: "정산 완료 보고서 생성", href: `/contracts/${contract.slug}`, tone: "primary" },
-      { label: "첨부 문서 최종 보관", href: `/contracts/${contract.slug}`, tone: "default" }
+      { label: "계약 이력 확인", href: `/contracts/${contract.slug}`, tone: "primary" },
+      { label: "관련 지출 정리", href: "/expenses", tone: "default" }
     ];
   }
 
   if (contract.billing === "발행 완료") {
     return [
-      { label: "입금 확인 처리", href: `/contracts/${contract.slug}`, tone: "primary" },
-      { label: "정산 회의록 연결", href: `/meetings`, tone: "default" }
+      { label: "발행 내역 확인", href: "/tax-invoices", tone: "primary" },
+      { label: "정산 회의록 연결", href: "/meetings", tone: "default" }
     ];
   }
 
-  if (contract.status === "완료") {
-    return [
-      { label: "세금계산서 발행", href: `/contracts/${contract.slug}/documents/tax-invoice-request`, tone: "primary" },
-      { label: "결과 보고 첨부", href: `/contracts/${contract.slug}`, tone: "default" }
-    ];
-  }
-
+  // 세금계산서 화면은 contractId 를 받으면 거래처와 계약 품목을 미리 채운다.
+  // 계약에서 넘어갈 때는 항상 이 주소로 보낸다 — 손으로 다시 입력하지 않게.
   return [
-    { label: "견적서 열기", href: "/documents/estimate", tone: "primary" },
-    { label: "계약서 작성", href: `/contracts/${contract.slug}/documents/contract`, tone: "default" },
-    { label: "지출결의서 작성", href: `/contracts/${contract.slug}/documents/expense-resolution`, tone: "default" }
+    { label: "세금계산서 발행", href: `/tax-invoices?contractId=${contract.slug}`, tone: "primary" },
+    { label: "견적서 목록", href: "/documents/estimate", tone: "default" },
+    { label: "관련 지출 등록", href: "/expenses", tone: "default" }
   ];
 }
 
-export const documentTemplates = {
-  quote: {
-    title: "견적서",
-    heading: "견적서",
-    fields: ["견적명", "작업 범위", "공급가액", "부가세", "유효기간", "특이사항"]
-  },
-  contract: {
-    title: "계약서",
-    heading: "계약서 작성",
-    fields: ["계약명", "계약 목적", "작업 범위", "계약금액", "정산 조건", "계약 기간"]
-  },
-  "expense-resolution": {
-    title: "지출결의서",
-    heading: "지출결의서 작성",
-    fields: ["지출 목적", "지출 항목", "공급업체", "금액", "결제수단", "증빙"]
-  },
-  "tax-invoice-request": {
-    title: "세금계산서 발행 요청서",
-    heading: "세금계산서 발행 요청서",
-    fields: ["공급받는 자", "공급가액", "부가세", "작성일", "품목", "비고"]
-  }
-};
 
 export const contractActivity: Array<{ date: string; title: string; type: string }> = [];
 export const billingQueue: Array<{ client: string; title: string; amount: string; due: string }> = [];

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createContract, getContractsForList } from "@/lib/contracts-service";
-import { withAuth } from "@/lib/auth";
+import { FINANCE_READ_ROLES, withAuth } from "@/lib/auth";
 
 export const runtime = "nodejs";
 
@@ -18,7 +18,7 @@ export const GET = withAuth(async () => {
   const contracts = await getContractsForList();
 
   return NextResponse.json({ ok: true, contracts });
-});
+}, { roles: [...FINANCE_READ_ROLES] });
 
 export const POST = withAuth(async (request) => {
   const body = await request.json();

@@ -1,10 +1,12 @@
 import { NextResponse } from "next/server";
 import { TaxInvoiceStatus } from "@prisma/client";
 import { getTaxInvoiceProvider, issueTaxInvoiceWithProvider, createTaxInvoiceMgtKey } from "@/lib/barobill-tax-invoice";
-import { withAuth } from "@/lib/auth";
+import { FINANCE_READ_ROLES, withAuth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { normalizeCorpNum, taxInvoiceFormSchema, toBarobillDate, toWriteDate } from "@/lib/tax-invoice-schema";
 import { serializeTaxInvoice, toProviderInput } from "@/lib/tax-invoice-service";
+import { afterInvoiceIssued } from "@/lib/contract-status-sync";
+import { applyContractPatch } from "@/lib/contract-status-apply";
 
 export const runtime = "nodejs";
 
@@ -48,7 +50,7 @@ export const GET = withAuth(async () => {
     provider: getTaxInvoiceProvider(),
     invoices: invoices.map(serializeTaxInvoice)
   });
-});
+}, { roles: [...FINANCE_READ_ROLES] });
 
 export const POST = withAuth(async (request, _context, user) => {
   const parsed = taxInvoiceFormSchema.safeParse(await request.json());
@@ -204,6 +206,14 @@ export const POST = withAuth(async (request, _context, user) => {
       },
       include: { items: { orderBy: { sortOrder: "asc" } } }
     });
+
+    // 발행과 동시에 계약의 청구 상태도 옮긴다 (계약 화면에서 또 눌러야 하는 일을 없앤다)
+    if (issued.contractId) {
+      await applyContractPatch(issued.contractId, afterInvoiceIssued, {
+        action: "BILLING_SYNC",
+        userId: user.id
+      });
+    }
 
     return NextResponse.json({ ok: true, message: providerResult.message, invoice: serializeTaxInvoice(issued) }, { status: 201 });
   } catch (error) {

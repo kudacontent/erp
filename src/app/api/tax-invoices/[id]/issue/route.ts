@@ -4,10 +4,12 @@ import { issueTaxInvoiceWithProvider } from "@/lib/barobill-tax-invoice";
 import { withAuth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { serializeTaxInvoice, toProviderInput } from "@/lib/tax-invoice-service";
+import { afterInvoiceIssued } from "@/lib/contract-status-sync";
+import { applyContractPatch } from "@/lib/contract-status-apply";
 
 export const runtime = "nodejs";
 
-export const POST = withAuth(async (_request, context) => {
+export const POST = withAuth(async (_request, context, user) => {
   const { id } = await context.params;
   const invoice = await prisma.taxInvoice.findUnique({
     where: { id },
@@ -47,6 +49,15 @@ export const POST = withAuth(async (_request, context) => {
       },
       include: { items: { orderBy: { sortOrder: "asc" } } }
     });
+
+    // 발행이 끝났으면 계약의 '세금계산서' 상태도 따라 움직여야 한다.
+    // 이걸 손으로 눌러 주던 시절에는 대부분 잊혀져 대시보드 숫자가 실제와 달랐다.
+    if (issued.contractId) {
+      await applyContractPatch(issued.contractId, afterInvoiceIssued, {
+        action: "BILLING_SYNC",
+        userId: user.id
+      });
+    }
 
     return NextResponse.json({ ok: true, message: providerResult.message, invoice: serializeTaxInvoice(issued) });
   } catch (error) {

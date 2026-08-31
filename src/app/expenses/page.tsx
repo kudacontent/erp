@@ -3,8 +3,14 @@ import { FilterableExpensesTable } from "@/components/filterable-expenses-table"
 import { ReceiptOcrForm } from "@/components/receipt-ocr-form";
 import { prisma } from "@/lib/prisma";
 import { formatWon } from "@/lib/money";
+import { getCurrentUser } from "@/lib/auth";
+import { redirect } from "next/navigation";
 
 export const dynamic = "force-dynamic";
+
+// 회사의 돈에 관한 화면이다. 권한이 없으면 대시보드로 돌려보낸다.
+const FINANCE_ROLES = ["CEO", "ADMIN", "ACCOUNTING", "OPERATIONS", "AUDITOR"];
+
 
 const approvalLabels = {
   DRAFT: "검토",
@@ -28,6 +34,16 @@ function parseMerchantName(value: string | null) {
 }
 
 export default async function ExpensesPage() {
+  const user = await getCurrentUser();
+
+  if (!user) {
+    redirect("/login?next=/expenses");
+  }
+
+  if (!FINANCE_ROLES.includes(user.role)) {
+    redirect("/");
+  }
+
   const records = await prisma.expense.findMany({
     include: { client: true },
     orderBy: { spentAt: "desc" },

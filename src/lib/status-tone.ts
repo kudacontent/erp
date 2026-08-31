@@ -83,7 +83,19 @@ const STATUS_TONES: Record<string, StatusTone> = {
   INACTIVE: "neutral",
   ARCHIVED: "neutral",
   DRAFT: "neutral",
-  CANCELED: "neutral"
+  CANCELED: "neutral",
+
+  // ── 견적 상태 ───────────────────────────────────────────
+  // ("작성 중"·REJECTED 는 위에 이미 있다)
+  발송: "info",
+  "수주 확정": "success",
+  실주: "danger",
+  "기한 만료": "warning",
+  "계약 전환": "success",
+  SENT: "info",
+  ACCEPTED: "success",
+  EXPIRED: "warning",
+  CONVERTED: "success"
 };
 
 /** 상태 문자열의 tone 을 돌려준다. 등록되지 않은 값은 neutral. */

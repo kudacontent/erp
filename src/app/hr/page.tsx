@@ -16,6 +16,11 @@ export default async function HrPage() {
   const user = await getCurrentUser();
   if (!user) redirect("/login?next=/hr");
 
+  // 급여가 포함된 화면이다. 인사 권한이 없으면 목록 자체를 보여주지 않는다.
+  if (user.role !== "CEO" && user.role !== "ADMIN" && user.role !== "HR") {
+    redirect("/");
+  }
+
   const employees = await prisma.employee.findMany({ orderBy: [{ status: "asc" }, { joinedAt: "desc" }] });
   const employeeViews: EmployeeView[] = employees.map((employee) => ({
     id: employee.id,

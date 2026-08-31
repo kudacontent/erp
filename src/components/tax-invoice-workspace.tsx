@@ -73,6 +73,15 @@ type Props = {
     id: string;
     clientId: string;
     projectTitle: string;
+    /** 계약 품목. 있으면 세금계산서 품목으로 그대로 옮긴다 */
+    items?: Array<{
+      name: string;
+      spec: string | null;
+      quantity: number;
+      unitPrice: string;
+      supplyAmount: string;
+      vatAmount: string;
+    }>;
     client: {
       name: string;
       businessNumber: string;
@@ -148,18 +157,32 @@ function initialForm(supplierDefaults: Party, initialContract?: Props["initialCo
     sendSms: false,
     forceIssue: false,
     mailTitle: "",
-    items: [
-      {
-        purchaseDate: today(),
-        name: initialContract?.projectTitle || "",
-        information: "",
-        chargeableUnit: "1",
-        unitPrice: "0",
-        amount: "0",
-        tax: "0",
-        description: ""
-      }
-    ]
+    items:
+      // 계약에 품목이 등록돼 있으면 그대로 옮겨 적는다.
+      // 손으로 다시 입력하면 금액이 어긋나기 쉽고, 그 차이는 발행 후에야 드러난다.
+      initialContract?.items && initialContract.items.length > 0
+        ? initialContract.items.map((item) => ({
+            purchaseDate: today(),
+            name: item.name,
+            information: item.spec || "",
+            chargeableUnit: String(item.quantity),
+            unitPrice: item.unitPrice,
+            amount: item.supplyAmount,
+            tax: item.vatAmount,
+            description: ""
+          }))
+        : [
+            {
+              purchaseDate: today(),
+              name: initialContract?.projectTitle || "",
+              information: "",
+              chargeableUnit: "1",
+              unitPrice: "0",
+              amount: "0",
+              tax: "0",
+              description: ""
+            }
+          ]
   };
 }
 

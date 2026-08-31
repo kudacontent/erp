@@ -4,15 +4,33 @@ import { TaxInvoiceWorkspace } from "@/components/tax-invoice-workspace";
 import { getTaxInvoiceSupplierDefaults } from "@/lib/barobill-tax-invoice";
 import { getClientsForList } from "@/lib/clients-service";
 import { prisma } from "@/lib/prisma";
+import { getCurrentUser } from "@/lib/auth";
+import { redirect } from "next/navigation";
+
+// 이 화면은 항상 최신 데이터를 보여줘야 한다
+export const dynamic = "force-dynamic";
+
+// 회사의 돈에 관한 화면이다. 권한이 없으면 대시보드로 돌려보낸다.
+const FINANCE_ROLES = ["CEO", "ADMIN", "ACCOUNTING", "OPERATIONS", "AUDITOR"];
 
 export default async function TaxInvoicesPage({ searchParams }: { searchParams: Promise<{ contractId?: string }> }) {
+  const user = await getCurrentUser();
+
+  if (!user) {
+    redirect("/login?next=/tax-invoices");
+  }
+
+  if (!FINANCE_ROLES.includes(user.role)) {
+    redirect("/");
+  }
+
   const params = await searchParams;
   const [clients, initialContract] = await Promise.all([
     getClientsForList(),
     params.contractId && process.env.DATABASE_URL
       ? prisma.projectContract.findUnique({
           where: { id: params.contractId },
-          include: { client: true }
+          include: { client: true, items: { orderBy: { sortOrder: "asc" } } }
         })
       : Promise.resolve(null)
   ]);
@@ -40,6 +58,14 @@ export default async function TaxInvoicesPage({ searchParams }: { searchParams: 
           id: initialContract.id,
           clientId: initialContract.clientId,
           projectTitle: initialContract.projectTitle,
+          items: initialContract.items.map((item) => ({
+            name: item.name,
+            spec: item.spec,
+            quantity: Number(item.quantity),
+            unitPrice: item.unitPrice.toString(),
+            supplyAmount: item.supplyAmount.toString(),
+            vatAmount: item.vatAmount.toString()
+          })),
           client: {
             name: initialContract.client.name,
             businessNumber: initialContract.client.businessNumber || "",

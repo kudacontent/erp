@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createExpenseSchema } from "@/lib/expense-schema";
-import { withAuth } from "@/lib/auth";
+import { FINANCE_READ_ROLES, withAuth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
 export const runtime = "nodejs";
@@ -35,7 +35,7 @@ export const GET = withAuth(async () => {
   });
 
   return NextResponse.json({ ok: true, expenses: expenses.map(serializeExpense) });
-});
+}, { roles: [...FINANCE_READ_ROLES] });
 
 export const POST = withAuth(async (request, _context, user) => {
   const body = await request.json();

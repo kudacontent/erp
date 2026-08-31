@@ -1,16 +1,27 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { ArrowLeft, CalendarDays, CheckCircle2, FileText, FileSignature, ReceiptText } from "lucide-react";
 import { ContractAdvanceButton } from "@/components/contract-advance-button";
+import { ContractItems } from "@/components/contract-items";
 import { EntityActions } from "@/components/ui/entity-actions";
 import {
   contractActivity,
-  contractDocuments,
+  getContractDocuments,
   contractFiles,
   getContractLifecycle,
   getContractNextActions
 } from "@/lib/contracts-data";
 import { getContractForDetail } from "@/lib/contracts-service";
+import { getCurrentUser } from "@/lib/auth";
+
+// 계약 금액과 품목은 등록·수정 즉시 반영되어야 한다.
+// 이 선언이 없으면 빌드 시점 스냅샷이 정적 파일로 굳어 최신 값이 보이지 않는다.
+export const dynamic = "force-dynamic";
+
+// 회사의 돈에 관한 화면이다. 목록 화면과 같은 기준으로 막는다.
+const FINANCE_READ = ["CEO", "ADMIN", "ACCOUNTING", "OPERATIONS", "AUDITOR"];
+// 품목을 고칠 수 있는 역할. 감사(AUDITOR)는 보기만 한다.
+const FINANCE_WRITE = ["CEO", "ADMIN", "ACCOUNTING", "OPERATIONS"];
 
 function lifecycleClass(state: string) {
   if (state === "done") {
@@ -34,6 +45,16 @@ function actionClass(tone: string) {
 
 export default async function ContractDetailPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
+  const user = await getCurrentUser();
+
+  if (!user) {
+    redirect(`/login?next=/contracts/${slug}`);
+  }
+
+  if (!FINANCE_READ.includes(user.role)) {
+    redirect("/");
+  }
+
   const contract = await getContractForDetail(slug);
 
   if (!contract) {
@@ -119,6 +140,10 @@ export default async function ContractDetailPage({ params }: { params: Promise<{
         </div>
       </section>
 
+      <div className="mb-6">
+        <ContractItems slug={contract.slug} canEdit={FINANCE_WRITE.includes(user.role)} />
+      </div>
+
       <section className="mb-6 grid gap-4 xl:grid-cols-[1fr_360px]">
         <div className="rounded-md border border-line bg-white p-5">
           <h3 className="mb-5 font-bold text-ink">정산 상태</h3>
@@ -166,23 +191,20 @@ export default async function ContractDetailPage({ params }: { params: Promise<{
       <section className="mb-6 rounded-md border border-line bg-white p-5">
         <div className="mb-5 flex items-center gap-2">
           <FileSignature className="h-5 w-5 text-marine" />
-          <h3 className="font-bold text-ink">문서 작업</h3>
+          <h3 className="font-bold text-ink">이어서 할 일</h3>
         </div>
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          {contractDocuments.map((document) => (
+          {getContractDocuments(contract.slug).map((document) => (
             <div key={document.title} className="rounded-md border border-line bg-paper p-4">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="font-bold text-ink">{document.title}</p>
-                  <p className="mt-2 text-sm leading-5 text-steel">{document.description}</p>
-                </div>
-                <span className="shrink-0 rounded-md bg-white px-2 py-1 text-xs font-medium text-marine">{document.status}</span>
+              <div>
+                <p className="font-bold text-ink">{document.title}</p>
+                <p className="mt-2 text-sm leading-5 text-steel">{document.description}</p>
               </div>
               <Link
-                href={document.href === "quote" ? "/documents/estimate" : `/contracts/${contract.slug}/documents/${document.href}`}
-                className="mt-4 block w-full rounded-md bg-white px-3 py-2 text-center text-sm font-medium text-ink"
+                href={document.href}
+                className="mt-4 block w-full rounded-md border border-line bg-white px-3 py-2 text-center text-sm font-medium text-marine"
               >
-                {document.href === "quote" ? "견적서 열기" : document.action}
+                {document.action}
               </Link>
             </div>
           ))}

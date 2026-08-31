@@ -236,6 +236,26 @@ type AuthRouteHandler = (
   user: AuthUser
 ) => Promise<Response>;
 
+/**
+ * 읽기 권한 묶음.
+ *
+ * 그동안 쓰기(POST/PATCH/DELETE)만 역할로 막고 읽기(GET)는 전부 열려 있었다.
+ * 로그인만 하면 EMPLOYEE 계정으로도 전 직원 급여와 전사 지출·매출을 볼 수 있었다.
+ */
+
+/** 인사 정보(급여 포함) */
+export const HR_ROLES: UserRole[] = ["CEO", "ADMIN", "HR"];
+
+/** 돈에 관한 것 — 지출·계약·매출·세금계산서. AUDITOR 는 감사 목적의 읽기 전용 */
+export const FINANCE_READ_ROLES: UserRole[] = ["CEO", "ADMIN", "ACCOUNTING", "OPERATIONS", "AUDITOR"];
+
+/** 영수증·명함 이미지 등 업로드 파일을 볼 수 있는 역할 */
+export const UPLOAD_READ_ROLES: Record<string, UserRole[]> = {
+  receipts: ["CEO", "ADMIN", "ACCOUNTING", "OPERATIONS", "AUDITOR"],
+  "business-cards": ["CEO", "ADMIN", "OPERATIONS", "ACCOUNTING", "HR", "EMPLOYEE", "AUDITOR"],
+  meetings: ["CEO", "ADMIN", "OPERATIONS", "HR", "EMPLOYEE", "AUDITOR"]
+};
+
 export function withAuth(
   handler: AuthRouteHandler,
   options?: { roles?: UserRole[]; write?: boolean }

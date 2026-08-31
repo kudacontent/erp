@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { withAuth } from "@/lib/auth";
+import { FINANCE_READ_ROLES, withAuth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
 export const runtime = "nodejs";
@@ -55,7 +55,7 @@ export const GET = withAuth(async (_request, context) => {
   }
 
   return NextResponse.json({ ok: true, contract: serialize(contract) });
-});
+}, { roles: [...FINANCE_READ_ROLES] });
 
 export const PATCH = withAuth(async (request, context, user) => {
   const { slug } = await context.params;

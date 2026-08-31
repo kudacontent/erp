@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { withAuth } from "@/lib/auth";
+import { HR_ROLES, withAuth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
 export const runtime = "nodejs";
@@ -25,10 +25,11 @@ function serializeEmployee(employee: { id: string; name: string; role: string; d
   };
 }
 
+// 급여가 들어 있으므로 인사 권한이 있는 사람만 읽는다
 export const GET = withAuth(async () => {
   const employees = await prisma.employee.findMany({ orderBy: [{ status: "asc" }, { joinedAt: "desc" }] });
   return NextResponse.json({ ok: true, employees: employees.map(serializeEmployee) });
-});
+}, { roles: [...HR_ROLES] });
 
 export const POST = withAuth(async (request) => {
   const parsed = employeeSchema.safeParse(await request.json());
