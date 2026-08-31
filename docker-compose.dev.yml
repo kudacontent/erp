@@ -1,0 +1,15 @@
+# 로컬 개발 전용 오버레이.
+#
+# docker-compose.yml 의 db/redis 는 포트를 공개하지 않아서 컨테이너 밖(맥)에서는 닿지 않는다.
+# 로컬에서 `npm run dev` 로 개발할 때만 이 파일을 겹쳐서 포트를 연다.
+#
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d db redis
+#
+# 운영(NAS)에서는 이 파일을 쓰지 않는다.
+services:
+  db:
+    ports:
+      - "5432:5432"
+  redis:
+    ports:
+      - "6379:6379"
