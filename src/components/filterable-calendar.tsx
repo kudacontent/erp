@@ -11,7 +11,16 @@ type CalendarDay = {
   day: string;
   muted: boolean;
   today?: boolean;
-  events: Array<{ id: string; title: string; category: string; time: string; isAllDay: boolean; syncStatus: string }>;
+  events: Array<{
+    id: string;
+    title: string;
+    category: string;
+    time: string;
+    isAllDay: boolean;
+    syncStatus: string;
+    /** 여러 날에 걸친 일정이 이 칸에서 어느 위치인지 */
+    spanPosition: "single" | "start" | "middle" | "end";
+  }>;
 };
 
 type TodayEvent = {
@@ -162,7 +171,7 @@ export function FilterableCalendar({
               key={day.key}
               className={[
                 "min-h-28 border-b border-r border-line bg-white p-3",
-                day.today ? "bg-[#e8f5fb]" : "",
+                day.today ? "bg-info-bg" : "",
                 day.muted ? "text-steel" : ""
               ].join(" ")}
             >
@@ -172,9 +181,21 @@ export function FilterableCalendar({
               </div>
               <div className="space-y-1">
                 {day.events.slice(0, 3).map((event) => {
+                  // 여러 날에 걸친 일정은 왼쪽 세로선으로 이어짐을 표시한다.
+                  // 시작일은 진한 선, 이어지는 날은 흐린 선.
+                  const isContinuation = event.spanPosition === "middle" || event.spanPosition === "end";
+                  const spanClass =
+                    event.spanPosition === "single"
+                      ? "rounded-sm"
+                      : event.spanPosition === "start"
+                        ? "rounded-l-sm border-l-2 border-marine"
+                        : event.spanPosition === "end"
+                          ? "rounded-r-sm border-l-2 border-marine/40"
+                          : "border-l-2 border-marine/40";
+
                   const eventContent = (
-                    <span className={["flex min-w-0 flex-col rounded-sm px-2 py-1 text-xs text-steel", event.id === selectedEventId ? "bg-[#d8f0fa] ring-1 ring-marine" : "bg-paper"].join(" ")}>
-                      <span className="text-[10px] font-bold text-marine">{event.time}</span>
+                    <span className={["flex min-w-0 flex-col px-2 py-1 text-xs text-steel", spanClass, event.id === selectedEventId ? "bg-info-bg ring-1 ring-marine" : "bg-paper"].join(" ")}>
+                      <span className={["text-[10px] font-bold", isContinuation ? "text-steel" : "text-marine"].join(" ")}>{event.time}</span>
                       <span className="truncate">{event.title}</span>
                     </span>
                   );

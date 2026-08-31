@@ -6,6 +6,11 @@ import { ResponsiveFilterBar } from "@/components/responsive-filter-bar";
 import { notificationFilters, notifications, notificationStats } from "@/lib/notifications-data";
 import { StatusBadge } from "@/components/ui/status-badge";
 
+// 이 화면은 등록 즉시 목록에 반영되어야 한다.
+// 이 선언이 없으면 Next.js 가 빌드 시점 DB 스냅샷으로 페이지를 구워 정적 파일로 서빙하고,
+// 이후 새로 등록한 데이터가 재빌드 전까지 화면에 나타나지 않는다.
+export const dynamic = "force-dynamic";
+
 export default function NotificationsPage() {
   const [query, setQuery] = useState("");
   const [selectedFilter, setSelectedFilter] = useState("전체");
