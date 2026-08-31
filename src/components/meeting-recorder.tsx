@@ -525,7 +525,7 @@ export function MeetingRecorder({
         {pendingBlobRef.current ? <button type="button" onClick={() => meetingId && void uploadRecording(pendingBlobRef.current as Blob, meetingId)} disabled={status === "transcribing"} className="inline-flex items-center gap-2 rounded-md bg-[#e8f5fb] px-3 py-2.5 text-sm font-bold text-marine disabled:opacity-60"><RefreshCw className="h-4 w-4" /> 녹음 파일 재전송</button> : null}
         {status === "saving" ? <span className="text-sm text-steel">저장 중…</span> : null}
         {status === "transcribing" ? <span className="text-sm text-steel">전사 중…</span> : null}
-        {message ? <p className={`basis-full text-sm ${status === "error" ? "text-[#b42318]" : "text-marine"}`}>{message}</p> : null}
+        {message ? <p className={`basis-full text-sm ${status === "error" ? "text-danger-fg" : "text-marine"}`}>{message}</p> : null}
       </div>
     </section>
   );

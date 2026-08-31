@@ -4,6 +4,8 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Pencil, Trash2 } from "lucide-react";
 import { ResponsiveFilterBar } from "@/components/responsive-filter-bar";
+import { EmptyState } from "@/components/ui/empty-state";
+import { StatusBadge } from "@/components/ui/status-badge";
 
 type MeetingListItem = {
   id: string;
@@ -15,18 +17,6 @@ type MeetingListItem = {
   status: string;
   minutes: string;
 };
-
-function meetingStatusClass(status: string) {
-  if (["완료", "후속 조치"].includes(status)) {
-    return "bg-[#e8f5fb] text-marine";
-  }
-
-  if (["진행 중", "예정"].includes(status)) {
-    return "bg-[#e5eef5] text-[#075985]";
-  }
-
-  return "bg-paper text-steel";
-}
 
 export function FilterableMeetingsTable({
   meetings,
@@ -115,9 +105,7 @@ export function FilterableMeetingsTable({
                   <td className="px-4 py-4 text-steel">{meeting.time}</td>
                   <td className="px-4 py-4 text-steel">{meeting.attendees}</td>
                   <td className="px-4 py-4">
-                    <span className={`rounded-md px-2 py-1 text-xs font-medium ${meetingStatusClass(meeting.status)}`}>
-                      {meeting.status}
-                    </span>
+                    <StatusBadge status={meeting.status} />
                   </td>
                   <td className="px-4 py-4 text-right">
                     <div className="inline-flex items-center gap-2">
@@ -129,8 +117,12 @@ export function FilterableMeetingsTable({
               ))
             ) : (
               <tr>
-                <td colSpan={6} className="px-4 py-10 text-center text-sm font-medium text-steel">
-                  조건에 맞는 회의가 없습니다.
+                <td colSpan={6} className="px-4 py-2">
+                  <EmptyState
+                    title={meetings.length ? "조건에 맞는 회의가 없습니다" : "등록된 회의가 없습니다"}
+                    description={meetings.length ? "검색어나 필터를 바꿔보세요." : "회의 정보가 아직 없습니다."}
+                    action={null}
+                  />
                 </td>
               </tr>
             )}
@@ -146,9 +138,7 @@ export function FilterableMeetingsTable({
                 <p className="truncate font-bold text-ink">{meeting.title}</p>
                 <p className="mt-1 truncate text-xs text-steel">{meeting.type} · {meeting.client}</p>
               </div>
-              <span className={`shrink-0 rounded-md px-2 py-1 text-xs font-medium ${meetingStatusClass(meeting.status)}`}>
-                {meeting.status}
-              </span>
+              <StatusBadge status={meeting.status} className="shrink-0" />
             </div>
             <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
               <div className="rounded-md bg-white px-3 py-2">
@@ -167,8 +157,12 @@ export function FilterableMeetingsTable({
             </div>
           </div>
         )) : (
-          <div className="rounded-md border border-line bg-paper px-4 py-10 text-center text-sm font-medium text-steel">
-            조건에 맞는 회의가 없습니다.
+          <div className="rounded-md border border-line bg-paper">
+            <EmptyState
+              title={meetings.length ? "조건에 맞는 회의가 없습니다" : "등록된 회의가 없습니다"}
+              description={meetings.length ? "검색어나 필터를 바꿔보세요." : "회의 정보가 아직 없습니다."}
+              action={null}
+            />
           </div>
         )}
       </div>

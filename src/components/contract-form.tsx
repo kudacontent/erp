@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { FilePlus2, FileSignature, Loader2, Save } from "lucide-react";
+import { Field } from "@/components/ui/field";
 
 type ClientOption = {
   name: string;
@@ -78,74 +79,53 @@ export function ContractForm({ clients, selectedClientId }: { clients: ClientOpt
     router.refresh();
   }
 
-  const inputClass = "mt-2 w-full rounded-md border border-line bg-paper px-3 py-2 text-sm text-ink outline-none focus:border-marine";
 
   return (
-    <form onSubmit={handleSubmit} className="grid gap-4 xl:grid-cols-[1fr_360px]">
+    <form onSubmit={handleSubmit} noValidate className="grid gap-4 xl:grid-cols-[1fr_360px]">
       <div className="rounded-md border border-line bg-white p-5">
         <h3 className="mb-5 font-bold text-ink">계약 정보</h3>
         <div className="grid gap-4 md:grid-cols-2">
-          <label className="block">
-            <span className="text-sm font-medium text-steel">거래처</span>
-            <select
-              className={inputClass}
-              value={form.clientName}
-              onChange={(event) => updateField("clientName", event.target.value)}
-            >
-              {clients.map((client) => (
-                <option key={client.slug} value={client.name}>
-                  {client.name}
-                </option>
-              ))}
-            </select>
-            {errors.clientName ? <p className="mt-1 text-xs text-[#075985]">{errors.clientName[0]}</p> : null}
-          </label>
-          <label className="block">
-            <span className="text-sm font-medium text-steel">입금 예정일</span>
-            <input
-              type="date"
-              className={inputClass}
-              value={form.dueDate}
-              onChange={(event) => updateField("dueDate", event.target.value)}
-            />
-          </label>
-          <label className="block md:col-span-2">
-            <span className="text-sm font-medium text-steel">계약명</span>
-            <input
-              className={inputClass}
-              value={form.projectTitle}
-              onChange={(event) => updateField("projectTitle", event.target.value)}
-            />
-            {errors.projectTitle ? <p className="mt-1 text-xs text-[#075985]">{errors.projectTitle[0]}</p> : null}
-          </label>
-          <label className="block">
-            <span className="text-sm font-medium text-steel">공급가액</span>
-            <input
-              inputMode="numeric"
-              className={inputClass}
-              value={form.supplyAmount}
-              onChange={(event) => updateField("supplyAmount", event.target.value)}
-            />
-            {errors.supplyAmount ? <p className="mt-1 text-xs text-[#075985]">{errors.supplyAmount[0]}</p> : null}
-          </label>
-          <label className="block">
-            <span className="text-sm font-medium text-steel">부가세</span>
-            <input
-              inputMode="numeric"
-              className={inputClass}
-              value={form.vatAmount}
-              onChange={(event) => updateField("vatAmount", event.target.value)}
-            />
-            {errors.vatAmount ? <p className="mt-1 text-xs text-[#075985]">{errors.vatAmount[0]}</p> : null}
-          </label>
-          <label className="block md:col-span-2">
-            <span className="text-sm font-medium text-steel">메모</span>
-            <textarea
-              className="mt-2 min-h-28 w-full rounded-md border border-line bg-paper px-3 py-2 text-sm text-ink outline-none focus:border-marine"
-              value={form.memo}
-              onChange={(event) => updateField("memo", event.target.value)}
-            />
-          </label>
+          <Field label="거래처" required error={errors.clientName?.[0]}>
+            {(props) => (
+              <select {...props} value={form.clientName} onChange={(event) => updateField("clientName", event.target.value)}>
+                {clients.map((client) => (
+                  <option key={client.slug} value={client.name}>
+                    {client.name}
+                  </option>
+                ))}
+              </select>
+            )}
+          </Field>
+          <Field label="입금 예정일">
+            {(props) => (
+              <input {...props} type="date" value={form.dueDate} onChange={(event) => updateField("dueDate", event.target.value)} />
+            )}
+          </Field>
+          <Field label="계약명" required error={errors.projectTitle?.[0]} className="md:col-span-2">
+            {(props) => (
+              <input {...props} value={form.projectTitle} onChange={(event) => updateField("projectTitle", event.target.value)} />
+            )}
+          </Field>
+          <Field label="공급가액" required error={errors.supplyAmount?.[0]} hint="단위: 만원">
+            {(props) => (
+              <input {...props} inputMode="numeric" value={form.supplyAmount} onChange={(event) => updateField("supplyAmount", event.target.value)} />
+            )}
+          </Field>
+          <Field label="부가세" required error={errors.vatAmount?.[0]} hint="단위: 만원">
+            {(props) => (
+              <input {...props} inputMode="numeric" value={form.vatAmount} onChange={(event) => updateField("vatAmount", event.target.value)} />
+            )}
+          </Field>
+          <Field label="메모" className="md:col-span-2">
+            {(props) => (
+              <textarea
+                {...props}
+                className={`${props.className} min-h-28`}
+                value={form.memo}
+                onChange={(event) => updateField("memo", event.target.value)}
+              />
+            )}
+          </Field>
         </div>
       </div>
 
@@ -186,7 +166,7 @@ export function ContractForm({ clients, selectedClientId }: { clients: ClientOpt
           <div className="space-y-3">
             {["견적서", "계약서", "지출결의서"].map((item) => (
               <label key={item} className="flex items-center gap-2 rounded-md bg-paper px-3 py-3 text-sm text-ink">
-                <input type="checkbox" className="h-4 w-4 accent-[#0b5f8a]" defaultChecked={item !== "지출결의서"} />
+                <input type="checkbox" className="h-4 w-4 accent-marine" defaultChecked={item !== "지출결의서"} />
                 {item}
               </label>
             ))}
@@ -201,7 +181,10 @@ export function ContractForm({ clients, selectedClientId }: { clients: ClientOpt
           {status === "saving" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
           저장
         </button>
-        {status === "error" ? <p className="text-sm text-[#075985]">{message}</p> : null}
+        {/* aria-live 로 저장 실패를 스크린리더에도 알린다 */}
+        <p aria-live="polite" className="text-sm font-medium text-danger-fg">
+          {status === "error" ? message : ""}
+        </p>
       </aside>
     </form>
   );

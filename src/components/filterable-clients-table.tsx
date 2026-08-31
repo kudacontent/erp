@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { Building2, Mail, Phone } from "lucide-react";
 import { ResponsiveFilterBar } from "@/components/responsive-filter-bar";
+import { EmptyState } from "@/components/ui/empty-state";
 
 type ClientListItem = {
   slug: string;
@@ -116,8 +117,16 @@ export function FilterableClientsTable({
               ))
             ) : (
               <tr>
-                <td colSpan={5} className="px-4 py-10 text-center text-sm font-medium text-steel">
-                  조건에 맞는 거래처가 없습니다.
+                <td colSpan={5} className="px-4 py-2">
+                  <EmptyState
+                    title={clients.length ? "조건에 맞는 거래처가 없습니다" : "등록된 거래처가 없습니다"}
+                    description={clients.length ? "검색어나 필터를 바꿔보세요." : "첫 거래처를 등록하면 여기에 표시됩니다."}
+                    action={clients.length ? null : (
+                      <Link href="/clients/new" className="inline-flex items-center justify-center rounded-md bg-marine px-3 py-2 text-sm font-medium text-white">
+                        거래처 등록
+                      </Link>
+                    )}
+                  />
                 </td>
               </tr>
             )}
@@ -159,8 +168,16 @@ export function FilterableClientsTable({
             </div>
           </Link>
         )) : (
-          <div className="rounded-md border border-line bg-paper px-4 py-10 text-center text-sm font-medium text-steel">
-            조건에 맞는 거래처가 없습니다.
+          <div className="rounded-md border border-line bg-paper">
+            <EmptyState
+              title={clients.length ? "조건에 맞는 거래처가 없습니다" : "등록된 거래처가 없습니다"}
+              description={clients.length ? "검색어나 필터를 바꿔보세요." : "첫 거래처를 등록하면 여기에 표시됩니다."}
+              action={clients.length ? null : (
+                  <Link href="/clients/new" className="inline-flex items-center justify-center rounded-md bg-marine px-3 py-2 text-sm font-medium text-white">
+                    거래처 등록
+                  </Link>
+                )}
+            />
           </div>
         )}
       </div>

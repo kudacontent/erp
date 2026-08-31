@@ -71,7 +71,7 @@ export default function LoginPage() {
             />
           </label>
 
-          {status === "error" ? <p className="text-sm font-medium text-[#b42318]">{message}</p> : null}
+          {status === "error" ? <p className="text-sm font-medium text-danger-fg">{message}</p> : null}
 
           <button
             type="submit"

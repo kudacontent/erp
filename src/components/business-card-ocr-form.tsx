@@ -272,7 +272,7 @@ export function BusinessCardOcrForm() {
               {status === "analyzing" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />}
               분석
             </button>
-            {status === "error" && message ? <p className="mt-3 text-sm text-[#075985]">{message}</p> : null}
+            {status === "error" && message ? <p className="mt-3 text-sm text-danger-fg">{message}</p> : null}
           </div>
         </div>
 

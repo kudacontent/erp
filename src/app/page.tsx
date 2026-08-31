@@ -1,5 +1,6 @@
 import { Bot, ChevronLeft, ChevronRight } from "lucide-react";
 import Link from "next/link";
+import { StatusBadge } from "@/components/ui/status-badge";
 import {
   calendarDays,
   dashboardSchedule,
@@ -8,18 +9,6 @@ import {
   heroStats,
   operationOverview
 } from "@/lib/dashboard-data";
-
-function statusClass(status: string) {
-  if (status === "진행") {
-    return "bg-[#e8f5fb] text-marine";
-  }
-
-  if (status === "확인") {
-    return "bg-[#ecfeff] text-[#075985]";
-  }
-
-  return "bg-paper text-steel";
-}
 
 export default function Home() {
   return (
@@ -131,9 +120,7 @@ export default function Home() {
                       <td className="px-4 py-4 text-steel">{row.owner}</td>
                       <td className="px-4 py-4 text-steel">{row.due}</td>
                       <td className="px-4 py-4">
-                        <span className={`rounded-md px-2 py-1 text-xs font-bold ${statusClass(row.status)}`}>
-                          {row.status}
-                        </span>
+                        <StatusBadge status={row.status} />
                       </td>
                     </tr>
                   ))}

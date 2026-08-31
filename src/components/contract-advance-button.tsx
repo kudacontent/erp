@@ -40,7 +40,7 @@ export function ContractAdvanceButton({ slug }: { slug: string }) {
         {status === "saving" ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
         상태 변경
       </button>
-      {status === "error" ? <p className="text-xs font-medium text-[#075985]">{message}</p> : null}
+      {status === "error" ? <p className="text-xs font-medium text-danger-fg">{message}</p> : null}
     </div>
   );
 }

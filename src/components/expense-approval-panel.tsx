@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { StatusBadge } from "@/components/ui/status-badge";
 import { CheckCircle2, CircleDollarSign, Loader2, Send, XCircle } from "lucide-react";
 
 type ApprovalStatus = "DRAFT" | "REQUESTED" | "APPROVED" | "REJECTED" | "PAID";
@@ -15,22 +16,6 @@ const statusLabels: Record<ApprovalStatus, string> = {
 };
 
 const approverRoles = new Set(["CEO", "ADMIN", "ACCOUNTING"]);
-
-function statusClass(status: ApprovalStatus) {
-  if (status === "APPROVED" || status === "PAID") {
-    return "bg-[#e8f5fb] text-marine";
-  }
-
-  if (status === "REQUESTED") {
-    return "bg-[#fff7d6] text-[#92400e]";
-  }
-
-  if (status === "REJECTED") {
-    return "bg-[#fef2f2] text-[#b42318]";
-  }
-
-  return "bg-paper text-steel";
-}
 
 export function ExpenseApprovalPanel({
   expenseId,
@@ -93,9 +78,7 @@ export function ExpenseApprovalPanel({
           <h3 className="font-bold text-ink">승인·지급 처리</h3>
           <p className="mt-1 text-sm text-steel">지출 증빙을 확인한 뒤 단계별로 처리합니다.</p>
         </div>
-        <span className={`shrink-0 rounded-md px-2 py-1 text-xs font-bold ${statusClass(status)}`}>
-          {statusLabels[status]}
-        </span>
+        <StatusBadge status={statusLabels[status]} className="shrink-0" />
       </div>
 
       <div className="mt-5 space-y-2">

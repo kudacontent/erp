@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Building2, Camera, Loader2, Save } from "lucide-react";
 import { clientTypeOptions, type CreateClientInput } from "@/lib/client-schema";
+import { Field } from "@/components/ui/field";
 
 type FieldErrors = Partial<Record<keyof CreateClientInput, string[]>>;
 
@@ -22,6 +23,12 @@ const initialForm: CreateClientInput = {
   contactPhone: "",
   contactEmail: ""
 };
+
+/** 담당자 칸은 좁아서 라벨을 숨기고 placeholder 로 안내한다. 위쪽 여백도 두지 않는다. */
+const compactInputClass =
+  "w-full rounded-md border border-line bg-paper px-3 py-2 text-sm text-ink outline-none transition-colors focus:border-marine";
+const compactInputErrorClass =
+  "w-full rounded-md border border-danger-border bg-danger-bg px-3 py-2 text-sm text-ink outline-none transition-colors focus:border-danger-fg";
 
 export function ClientForm() {
   const router = useRouter();
@@ -57,65 +64,93 @@ export function ClientForm() {
     router.refresh();
   }
 
-  const inputClass = "mt-2 w-full rounded-md border border-line bg-paper px-3 py-2 text-sm text-ink outline-none focus:border-marine";
-
   return (
-    <form onSubmit={handleSubmit} className="grid gap-4 xl:grid-cols-[1fr_360px]">
+    <form onSubmit={handleSubmit} noValidate className="grid gap-4 xl:grid-cols-[1fr_360px]">
       <div className="rounded-md border border-line bg-white p-5">
         <h3 className="mb-5 font-bold text-ink">기본 정보</h3>
         <div className="grid gap-4 md:grid-cols-2">
-          <label className="block">
-            <span className="text-sm font-medium text-steel">거래처명</span>
-            <input className={inputClass} value={form.name} onChange={(event) => updateField("name", event.target.value)} />
-            {errors.name ? <p className="mt-1 text-xs text-[#075985]">{errors.name[0]}</p> : null}
-          </label>
-          <label className="block">
-            <span className="text-sm font-medium text-steel">거래처 유형</span>
-            <select
-              className={inputClass}
-              value={form.clientType}
-              onChange={(event) => updateField("clientType", event.target.value as CreateClientInput["clientType"])}
-            >
-              {clientTypeOptions.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="block">
-            <span className="text-sm font-medium text-steel">사업자등록번호</span>
-            <input
-              className={inputClass}
-              value={form.businessNumber}
-              onChange={(event) => updateField("businessNumber", event.target.value)}
-            />
-          </label>
-          <label className="block">
-            <span className="text-sm font-medium text-steel">대표 연락처</span>
-            <input className={inputClass} value={form.phone} onChange={(event) => updateField("phone", event.target.value)} />
-          </label>
-          <label className="block">
-            <span className="text-sm font-medium text-steel">대표 이메일</span>
-            <input className={inputClass} value={form.email} onChange={(event) => updateField("email", event.target.value)} />
-            {errors.email ? <p className="mt-1 text-xs text-[#075985]">{errors.email[0]}</p> : null}
-          </label>
-          <label className="block">
-            <span className="text-sm font-medium text-steel">주소</span>
-            <input className={inputClass} value={form.address} onChange={(event) => updateField("address", event.target.value)} />
-          </label>
-          <label className="block">
-            <span className="text-sm font-medium text-steel">웹사이트</span>
-            <input className={inputClass} value={form.website} onChange={(event) => updateField("website", event.target.value)} />
-          </label>
-          <label className="block md:col-span-2">
-            <span className="text-sm font-medium text-steel">메모</span>
-            <textarea
-              className="mt-2 min-h-28 w-full rounded-md border border-line bg-paper px-3 py-2 text-sm text-ink outline-none focus:border-marine"
-              value={form.memo}
-              onChange={(event) => updateField("memo", event.target.value)}
-            />
-          </label>
+          <Field label="거래처명" required error={errors.name?.[0]}>
+            {(props) => (
+              <input {...props} value={form.name} onChange={(event) => updateField("name", event.target.value)} />
+            )}
+          </Field>
+
+          <Field label="거래처 유형">
+            {(props) => (
+              <select
+                {...props}
+                value={form.clientType}
+                onChange={(event) => updateField("clientType", event.target.value as CreateClientInput["clientType"])}
+              >
+                {clientTypeOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            )}
+          </Field>
+
+          <Field label="사업자등록번호" hint="'-' 없이 숫자만 입력해도 됩니다">
+            {(props) => (
+              <input
+                {...props}
+                inputMode="numeric"
+                value={form.businessNumber}
+                onChange={(event) => updateField("businessNumber", event.target.value)}
+              />
+            )}
+          </Field>
+
+          <Field label="대표 연락처">
+            {(props) => (
+              <input
+                {...props}
+                type="tel"
+                value={form.phone}
+                onChange={(event) => updateField("phone", event.target.value)}
+              />
+            )}
+          </Field>
+
+          <Field label="대표 이메일" error={errors.email?.[0]}>
+            {(props) => (
+              <input
+                {...props}
+                type="email"
+                value={form.email}
+                onChange={(event) => updateField("email", event.target.value)}
+              />
+            )}
+          </Field>
+
+          <Field label="주소">
+            {(props) => (
+              <input {...props} value={form.address} onChange={(event) => updateField("address", event.target.value)} />
+            )}
+          </Field>
+
+          <Field label="웹사이트">
+            {(props) => (
+              <input
+                {...props}
+                type="url"
+                value={form.website}
+                onChange={(event) => updateField("website", event.target.value)}
+              />
+            )}
+          </Field>
+
+          <Field label="메모" className="md:col-span-2">
+            {(props) => (
+              <textarea
+                {...props}
+                className={`${props.className} min-h-28`}
+                value={form.memo}
+                onChange={(event) => updateField("memo", event.target.value)}
+              />
+            )}
+          </Field>
         </div>
       </div>
 
@@ -126,38 +161,67 @@ export function ClientForm() {
             <h3 className="font-bold text-ink">담당자</h3>
           </div>
           <div className="space-y-3">
-            <input
-              placeholder="이름"
-              className="w-full rounded-md border border-line bg-paper px-3 py-2 text-sm outline-none focus:border-marine"
-              value={form.contactName}
-              onChange={(event) => updateField("contactName", event.target.value)}
-            />
-            {errors.contactName ? <p className="text-xs text-[#075985]">{errors.contactName[0]}</p> : null}
-            <input
-              placeholder="직책"
-              className="w-full rounded-md border border-line bg-paper px-3 py-2 text-sm outline-none focus:border-marine"
-              value={form.contactPosition}
-              onChange={(event) => updateField("contactPosition", event.target.value)}
-            />
-            <input
-              placeholder="부서"
-              className="w-full rounded-md border border-line bg-paper px-3 py-2 text-sm outline-none focus:border-marine"
-              value={form.contactDepartment}
-              onChange={(event) => updateField("contactDepartment", event.target.value)}
-            />
-            <input
-              placeholder="휴대폰"
-              className="w-full rounded-md border border-line bg-paper px-3 py-2 text-sm outline-none focus:border-marine"
-              value={form.contactPhone}
-              onChange={(event) => updateField("contactPhone", event.target.value)}
-            />
-            <input
-              placeholder="이메일"
-              className="w-full rounded-md border border-line bg-paper px-3 py-2 text-sm outline-none focus:border-marine"
-              value={form.contactEmail}
-              onChange={(event) => updateField("contactEmail", event.target.value)}
-            />
-            {errors.contactEmail ? <p className="text-xs text-[#075985]">{errors.contactEmail[0]}</p> : null}
+            <Field label="담당자 이름" hideLabel required error={errors.contactName?.[0]}>
+              {(props) => (
+                <input
+                  {...props}
+                  className={props["aria-invalid"] ? compactInputErrorClass : compactInputClass}
+                  placeholder="이름"
+                  value={form.contactName}
+                  onChange={(event) => updateField("contactName", event.target.value)}
+                />
+              )}
+            </Field>
+
+            <Field label="담당자 직책" hideLabel>
+              {(props) => (
+                <input
+                  {...props}
+                  className={compactInputClass}
+                  placeholder="직책"
+                  value={form.contactPosition}
+                  onChange={(event) => updateField("contactPosition", event.target.value)}
+                />
+              )}
+            </Field>
+
+            <Field label="담당자 부서" hideLabel>
+              {(props) => (
+                <input
+                  {...props}
+                  className={compactInputClass}
+                  placeholder="부서"
+                  value={form.contactDepartment}
+                  onChange={(event) => updateField("contactDepartment", event.target.value)}
+                />
+              )}
+            </Field>
+
+            <Field label="담당자 휴대폰" hideLabel>
+              {(props) => (
+                <input
+                  {...props}
+                  type="tel"
+                  className={compactInputClass}
+                  placeholder="휴대폰"
+                  value={form.contactPhone}
+                  onChange={(event) => updateField("contactPhone", event.target.value)}
+                />
+              )}
+            </Field>
+
+            <Field label="담당자 이메일" hideLabel error={errors.contactEmail?.[0]}>
+              {(props) => (
+                <input
+                  {...props}
+                  type="email"
+                  className={props["aria-invalid"] ? compactInputErrorClass : compactInputClass}
+                  placeholder="이메일"
+                  value={form.contactEmail}
+                  onChange={(event) => updateField("contactEmail", event.target.value)}
+                />
+              )}
+            </Field>
           </div>
         </section>
 
@@ -179,7 +243,11 @@ export function ClientForm() {
           {status === "saving" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
           저장
         </button>
-        {status === "error" ? <p className="text-sm text-[#075985]">입력값을 확인하세요.</p> : null}
+
+        {/* aria-live 로 저장 실패를 스크린리더에도 알린다 */}
+        <p aria-live="polite" className="text-sm font-medium text-danger-fg">
+          {status === "error" ? "입력값을 확인하세요." : ""}
+        </p>
       </aside>
     </form>
   );

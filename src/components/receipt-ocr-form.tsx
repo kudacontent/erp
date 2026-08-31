@@ -365,7 +365,7 @@ export function ReceiptOcrForm() {
         </div>
       ) : null}
 
-      {message ? <p className={`mt-3 text-sm ${status === "error" ? "text-[#b42318]" : "text-marine"}`}>{message}</p> : null}
+      {message ? <p className={`mt-3 text-sm ${status === "error" ? "text-danger-fg" : "text-marine"}`}>{message}</p> : null}
     </section>
   );
 }

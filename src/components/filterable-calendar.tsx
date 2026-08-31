@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ChevronLeft, ChevronRight, Search } from "lucide-react";
+import { EmptyState } from "@/components/ui/empty-state";
 
 type CalendarDay = {
   key: string;
@@ -215,7 +216,12 @@ export function FilterableCalendar({
                 </Link>
               ))
             ) : (
-              <p className="rounded-md bg-paper px-3 py-4 text-sm font-medium text-steel">조건에 맞는 일정이 없습니다.</p>
+              <div className="rounded-md bg-paper">
+                <EmptyState
+                  title={monthEvents.length ? "조건에 맞는 일정이 없습니다" : "이번 달 일정이 없습니다"}
+                  description={monthEvents.length ? "카테고리나 검색어를 바꿔보세요." : "구글 캘린더를 연동하거나 일정을 추가하면 여기에 표시됩니다."}
+                />
+              </div>
             )}
           </div>
         </section>
@@ -234,7 +240,12 @@ export function FilterableCalendar({
                 </div>
               ))
             ) : (
-              <p className="rounded-md bg-paper px-3 py-4 text-sm font-medium text-steel">조건에 맞는 오늘 일정이 없습니다.</p>
+              <div className="rounded-md bg-paper">
+                <EmptyState
+                  title={todayEvents.length ? "조건에 맞는 오늘 일정이 없습니다" : "오늘 일정이 없습니다"}
+                  description={todayEvents.length ? "카테고리나 검색어를 바꿔보세요." : undefined}
+                />
+              </div>
             )}
           </div>
         </section>

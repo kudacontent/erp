@@ -1,3 +1,7 @@
+/* Pretendard - 한글 본문 폰트. dynamic-subset 이라 실제 쓰이는 글자만 내려받는다.
+   CDN 이 막힌 환경에서는 아래 font-family 폴백(애플 SD 산돌고딕 / 맑은 고딕)으로 자연스럽게 대체된다. */
+@import url("https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css");
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -22,12 +26,61 @@ body {
   margin: 0;
   background: #f3f8fb;
   color: #0b1f33;
-  font-family: Arial, Helvetica, sans-serif;
+  font-family:
+    "Pretendard Variable",
+    Pretendard,
+    -apple-system,
+    BlinkMacSystemFont,
+    system-ui,
+    "Apple SD Gothic Neo",
+    "Malgun Gothic",
+    "Noto Sans KR",
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
 
 a {
   color: inherit;
   text-decoration: none;
+}
+
+/* 표의 숫자가 세로로 정렬되도록 - 금액/수량 열이 읽기 쉬워진다 */
+table {
+  font-variant-numeric: tabular-nums;
+}
+
+/* 공통 포커스 링.
+   기존에는 focus-visible 스타일이 앱 전체에 0건이라 키보드로 조작하면 초점이 사라졌다.
+   :focus-visible 이라 마우스 클릭 시에는 나타나지 않는다. */
+:where(a, button, input, select, textarea, summary, [tabindex]:not([tabindex="-1"])):focus-visible {
+  outline: 2px solid #0b5f8a;
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* 어두운 사이드바 위에서는 밝은 링을 쓴다 */
+:where(aside) :where(a, button, [tabindex]:not([tabindex="-1"])):focus-visible {
+  outline-color: #6dd3ef;
+}
+
+/* 인쇄물에는 포커스 링이 나오지 않도록 */
+@media print {
+  *:focus-visible {
+    outline: none !important;
+  }
+}
+
+/* 모션을 줄이도록 설정한 사용자를 존중 */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
 
 .document-preview-pane {
