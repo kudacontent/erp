@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { ArrowLeft, CalendarDays, FileImage, ReceiptText, UserRound } from "lucide-react";
 import { ExpenseApprovalPanel } from "@/components/expense-approval-panel";
+import { EntityActions } from "@/components/ui/entity-actions";
 import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
@@ -83,9 +84,35 @@ export default async function ExpenseDetailPage({ params }: { params: Promise<{ 
             </div>
           </div>
         </div>
-        <div className="rounded-md border border-line bg-white px-4 py-3 text-right">
-          <p className="text-xs text-steel">지출 합계</p>
-          <p className="mt-1 text-xl font-bold text-ink">{formatMoney(expense.totalAmount)}</p>
+        <div className="flex flex-col items-stretch gap-3 lg:items-end">
+          <div className="rounded-md border border-line bg-white px-4 py-3 text-right">
+            <p className="text-xs text-steel">지출 합계</p>
+            <p className="mt-1 text-xl font-bold text-ink">{formatMoney(expense.totalAmount)}</p>
+          </div>
+          {/* 승인·지급이 끝난 지출은 회계 기록이므로 수정·삭제 버튼 대신 사유를 보여준다 */}
+          <EntityActions
+            endpoint={`/api/expenses/${expense.id}`}
+            resourceKey="expense"
+            displayName="지출 내역"
+            editLabel="내역 수정"
+            deleteLabel="삭제"
+            deleteDescription="지출 내역이 완전히 삭제됩니다. 되돌릴 수 없습니다."
+            redirectTo="/expenses"
+            lockedReason={
+              expense.approvalStatus === "PAID"
+                ? "지급이 완료된 지출은 수정·삭제할 수 없습니다."
+                : expense.approvalStatus === "APPROVED"
+                  ? "승인이 완료된 지출은 수정·삭제할 수 없습니다. 반려 후 처리하세요."
+                  : undefined
+            }
+            fields={[
+              { key: "expenseCategory", label: "지출 항목", required: true },
+              { key: "paymentMethod", label: "결제 수단", required: true },
+              { key: "amount", label: "공급가액", type: "number", hint: "원 단위" },
+              { key: "vatAmount", label: "부가세", type: "number", hint: "원 단위" },
+              { key: "spentAt", label: "사용일시", type: "datetime", wide: true }
+            ]}
+          />
         </div>
       </section>
 

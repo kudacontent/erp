@@ -1,7 +1,7 @@
-import { Camera, FileText, Plus, Users } from "lucide-react";
+import { Camera, Plus } from "lucide-react";
 import Link from "next/link";
 import { FilterableClientsTable } from "@/components/filterable-clients-table";
-import { clientActivities, clientTypes } from "@/lib/clients-data";
+import { clientTypes } from "@/lib/clients-data";
 import { getClientsForList } from "@/lib/clients-service";
 
 // 이 화면은 등록 즉시 목록에 반영되어야 한다.
@@ -49,42 +49,6 @@ export default async function ClientsPage() {
         <FilterableClientsTable clients={clients} clientTypes={clientTypes} />
       </section>
 
-      <section className="grid gap-4 xl:grid-cols-[1fr_360px]">
-        <div className="rounded-md border border-line bg-white p-5">
-          <h3 className="mb-4 font-bold text-ink">최근 활동</h3>
-          <div className="space-y-3">
-            {clientActivities.length ? clientActivities.map((activity) => (
-              <div key={`${activity.date}-${activity.title}`} className="flex items-center gap-3 rounded-md bg-paper px-3 py-3">
-                <span className="w-12 shrink-0 text-sm font-bold text-marine">{activity.date}</span>
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium text-ink">{activity.title}</p>
-                </div>
-                <span className="rounded-md bg-white px-2 py-1 text-xs font-medium text-steel">{activity.type}</span>
-              </div>
-            )) : <p className="rounded-md bg-paper px-3 py-4 text-sm font-medium text-steel">등록된 활동이 없습니다.</p>}
-          </div>
-        </div>
-
-        <div className="rounded-md border border-line bg-white p-5">
-          <h3 className="mb-4 font-bold text-ink">담당자 관리</h3>
-          <div className="space-y-3">
-            <div className="flex items-center gap-3 rounded-md bg-paper px-3 py-3">
-              <Users className="h-5 w-5 text-marine" />
-              <div>
-                <p className="text-sm font-medium text-ink">담당자 정보</p>
-                <p className="mt-1 text-xs text-steel">거래처별 연락처 연결</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-3 rounded-md bg-paper px-3 py-3">
-              <FileText className="h-5 w-5 text-marine" />
-              <div>
-                <p className="text-sm font-medium text-ink">첨부 문서</p>
-                <p className="mt-1 text-xs text-steel">계약서, 견적서, 명함 이미지</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
     </main>
   );
 }

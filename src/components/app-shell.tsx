@@ -60,11 +60,30 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           }
         ]
       : modules;
-  const primaryNavigation = navigationModules.filter((module) => ["/clients", "/contracts", "/expenses", "/meetings"].includes(module.href));
-  const supportNavigation = navigationModules.filter((module) => !primaryNavigation.some((primary) => primary.href === module.href));
+  // 메뉴를 업무 흐름대로 묶는다.
+  // 특히 견적서 → 인보이스 → 세금계산서는 한 거래에서 순서대로 나오는 문서라
+  // 붙어 있어야 다음에 무엇을 할지가 화면에 드러난다.
+  const groupPlan: Array<{ label: string; hrefs: string[] }> = [
+    { label: "영업 · 매출", hrefs: ["/clients", "/contracts"] },
+    { label: "문서 · 정산", hrefs: ["/documents/estimate", "/documents/invoice", "/tax-invoices", "/expenses"] },
+    { label: "업무", hrefs: ["/meetings", "/calendar"] },
+    { label: "관리", hrefs: ["/hr", "/reports/daily", "/admin"] }
+  ];
+
+  const grouped = groupPlan.map((group) => ({
+    label: group.label,
+    items: group.hrefs
+      .map((href) => navigationModules.find((module) => module.href === href))
+      .filter((module): module is (typeof navigationModules)[number] => Boolean(module))
+  }));
+
+  // 어느 그룹에도 속하지 않은 메뉴가 생기면 사라지지 않도록 마지막에 모은다
+  const groupedHrefs = new Set(groupPlan.flatMap((group) => group.hrefs));
+  const ungrouped = navigationModules.filter((module) => !groupedHrefs.has(module.href));
+
   const navigationGroups = [
-    { label: "핵심 업무", items: primaryNavigation },
-    { label: "지원 메뉴", items: supportNavigation }
+    ...grouped.filter((group) => group.items.length > 0),
+    ...(ungrouped.length > 0 ? [{ label: "기타", items: ungrouped }] : [])
   ];
 
   return (

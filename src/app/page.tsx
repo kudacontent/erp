@@ -1,193 +1,194 @@
-import { Bot, ChevronLeft, ChevronRight } from "lucide-react";
 import Link from "next/link";
+import { ArrowRight, CalendarDays, CircleDollarSign, ClipboardCheck, ReceiptText } from "lucide-react";
 import { StatusBadge } from "@/components/ui/status-badge";
-import {
-  calendarDays,
-  dashboardSchedule,
-  dashboardTaskRows,
-  erpFlowGroups,
-  heroStats,
-  operationOverview
-} from "@/lib/dashboard-data";
+import { EmptyState } from "@/components/ui/empty-state";
+import { getDashboardData, type ActionItemRow } from "@/lib/dashboard-service";
 
-export default function Home() {
+// 대시보드는 항상 최신 집계를 보여줘야 한다
+export const dynamic = "force-dynamic";
+
+/**
+ * 할 일 묶음 하나.
+ *
+ * "현황판"이 아니라 "지금 손대야 할 것"을 보여주는 게 목적이라
+ * 항목마다 해당 화면으로 바로 갈 수 있게 한다.
+ */
+function ActionSection({
+  title,
+  description,
+  icon,
+  items,
+  emptyTitle,
+  emptyDescription,
+  moreHref,
+  moreLabel
+}: {
+  title: string;
+  description: string;
+  icon: React.ReactNode;
+  items: ActionItemRow[];
+  emptyTitle: string;
+  emptyDescription: string;
+  moreHref: string;
+  moreLabel: string;
+}) {
   return (
-    <main className="min-h-screen bg-[#eef6fb]">
-      <section className="relative bg-[linear-gradient(135deg,#1d76e8_0%,#22a5e9_58%,#7fd5f7_100%)] px-5 pb-10 pt-7 sm:px-8">
-        <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
-          <div>
-            <p className="text-sm font-bold text-white/80">KUDALABS ERP</p>
-            <h2 className="mt-2 text-3xl font-bold leading-tight text-white">전체 현황</h2>
-          </div>
-          <div className="rounded-md bg-white/15 px-3 py-2 text-sm font-medium text-white shadow-sm ring-1 ring-white/20">
-            운영 데이터 기준
+    <section className="flex flex-col rounded-md border border-line bg-surface">
+      <div className="flex items-start justify-between gap-3 border-b border-line px-5 py-4">
+        <div className="flex min-w-0 items-start gap-3">
+          <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-info-bg text-marine">
+            {icon}
+          </span>
+          <div className="min-w-0">
+            <h3 className="font-bold text-ink">
+              {title}
+              {items.length > 0 ? <span className="ml-2 text-sm font-medium text-steel">{items.length}건</span> : null}
+            </h3>
+            <p className="mt-1 text-sm text-steel">{description}</p>
           </div>
         </div>
+        <Link href={moreHref} className="shrink-0 text-sm font-medium text-marine hover:underline">
+          {moreLabel}
+        </Link>
+      </div>
 
-        <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {heroStats.map((stat) => (
-            <Link key={stat.label} href={stat.href} className="min-h-32 rounded-md bg-white p-5 shadow-[0_16px_40px_rgba(9,34,53,0.12)] transition hover:-translate-y-0.5 hover:shadow-[0_18px_44px_rgba(9,34,53,0.18)] focus:outline-none focus:ring-2 focus:ring-white">
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <p className="text-sm font-medium text-steel">{stat.label}</p>
-                  <p className="mt-2 text-3xl font-bold text-ink">{stat.value}</p>
-                  <p className="mt-2 text-sm font-bold text-marine">{stat.sub}</p>
+      {items.length === 0 ? (
+        <EmptyState title={emptyTitle} description={emptyDescription} />
+      ) : (
+        <ul className="divide-y divide-line">
+          {items.map((item) => (
+            <li key={item.id}>
+              <Link
+                href={item.href}
+                className="flex items-center justify-between gap-3 px-5 py-3.5 transition-colors hover:bg-surface-sunk"
+              >
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="truncate font-medium text-ink">{item.title}</p>
+                    <StatusBadge status={item.tone} />
+                  </div>
+                  <p className="mt-1 truncate text-sm text-steel">{item.detail}</p>
                 </div>
-                <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-md bg-[#eef9fd] text-marine">
-                  <stat.icon className="h-7 w-7" />
-                </span>
-              </div>
-            </Link>
+                <div className="flex shrink-0 items-center gap-2">
+                  <span className="text-sm font-semibold text-ink">{item.amount}</span>
+                  <ArrowRight className="h-4 w-4 text-steel" aria-hidden="true" />
+                </div>
+              </Link>
+            </li>
           ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+
+export default async function Home() {
+  const data = await getDashboardData();
+
+  return (
+    <main className="px-5 py-6 sm:px-8">
+      <section className="mb-6 border-b border-line pb-5">
+        <h2 className="text-2xl font-bold text-ink sm:text-3xl">오늘 할 일</h2>
+        <p className="mt-2 text-sm text-steel">
+          결재·입금·발행이 밀린 건을 먼저 보여줍니다. 항목을 누르면 해당 화면으로 바로 이동합니다.
+        </p>
+      </section>
+
+      {!data.hasDatabase ? (
+        <div className="rounded-md border border-warning-border bg-warning-bg px-4 py-3 text-sm text-ink">
+          데이터베이스에 연결하지 못했습니다. 아래 숫자는 비어 있는 상태입니다.
+        </div>
+      ) : null}
+
+      {/* 요약 지표 — 전부 실제 집계값 */}
+      <section className="mb-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        {data.stats.map((stat) => (
+          <Link
+            key={stat.label}
+            href={stat.href}
+            className="rounded-md border border-line bg-surface px-5 py-4 transition-colors hover:border-marine"
+          >
+            <p className="text-sm text-steel">{stat.label}</p>
+            <p className="mt-2 text-3xl font-bold tabular-nums text-ink">{stat.value}</p>
+            <p className="mt-1 text-xs text-steel">{stat.sub}</p>
+          </Link>
+        ))}
+        <div className="rounded-md border border-line bg-surface px-5 py-4 sm:col-span-2 xl:col-span-4">
+          <p className="text-sm text-steel">이번 달 입금 완료 금액</p>
+          <p className="mt-2 text-2xl font-bold tabular-nums text-success-fg">{data.monthRevenue}</p>
         </div>
       </section>
 
-      <section className="grid items-stretch gap-5 px-5 py-6 sm:px-8 lg:grid-cols-[minmax(0,1fr)_340px]">
-        <div className="min-w-0 space-y-5">
-          <section className="rounded-md border border-line bg-white p-5 shadow-[0_14px_35px_rgba(9,34,53,0.08)]">
-            <div className="mb-5 flex flex-wrap items-center justify-between gap-2">
-              <h3 className="text-lg font-bold text-ink">업무 현황</h3>
-              <p className="text-sm font-medium text-steel">메뉴별 처리 상태</p>
-            </div>
-            <div className="grid auto-rows-fr gap-4 sm:grid-cols-2 lg:grid-cols-4">
-              {operationOverview.map((item) => (
-                <Link key={item.title} href={item.href} className="h-full rounded-md border border-line bg-[#f8fbfd] p-4 transition hover:border-marine hover:bg-white focus:outline-none focus:ring-2 focus:ring-marine">
-                  <p className="mb-4 font-bold text-ink">{item.title}</p>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <p className="text-2xl font-bold text-ink">{item.primary}</p>
-                      <p className="mt-1 text-xs text-steel">{item.primaryLabel}</p>
-                    </div>
-                    <div className="border-l border-line pl-3">
-                      <p className="text-2xl font-bold text-marine">{item.secondary}</p>
-                      <p className="mt-1 text-xs text-steel">{item.secondaryLabel}</p>
-                    </div>
-                  </div>
-                </Link>
-              ))}
-            </div>
-          </section>
+      <div className="grid gap-4 xl:grid-cols-2">
+        <ActionSection
+          title="승인 대기 지출"
+          description="결재를 기다리는 지출입니다."
+          icon={<ClipboardCheck className="h-5 w-5" />}
+          items={data.pendingApprovals}
+          emptyTitle="결재할 지출이 없습니다"
+          emptyDescription="승인 대기 상태인 지출이 올라오면 여기에 표시됩니다."
+          moreHref="/expenses"
+          moreLabel="지출 전체"
+        />
 
-          <section className="rounded-md border border-line bg-white p-5 shadow-[0_14px_35px_rgba(9,34,53,0.08)]">
-            <div className="mb-5 flex flex-wrap items-center justify-between gap-2">
-              <h3 className="text-lg font-bold text-ink">업무 연결</h3>
-              <p className="text-sm font-medium text-steel">거래 시작부터 정산 마감까지</p>
-            </div>
-            <div className="grid auto-rows-fr gap-4 lg:grid-cols-4">
-              {erpFlowGroups.map((group, index) => (
-                <div key={group.title} className="relative h-full rounded-md border border-line bg-[#f8fbfd] p-4">
-                  <div className="mb-4 flex items-center justify-between">
-                    <p className="font-bold text-ink">{group.title}</p>
-                    <span className="rounded-md bg-white px-2 py-1 text-xs font-bold text-marine">{String(index + 1).padStart(2, "0")}</span>
-                  </div>
-                  <div className="space-y-2">
-                    {group.items.map((item) => (
-                      <Link key={item.label} href={item.href} className="block rounded-md bg-white px-3 py-2 text-sm font-medium text-steel transition hover:bg-[#e8f5fb] hover:text-marine focus:outline-none focus:ring-2 focus:ring-marine">
-                        {item.label}
-                      </Link>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </section>
+        <ActionSection
+          title="입금 지연"
+          description="입금 예정일이 지났는데 아직 들어오지 않은 계약입니다."
+          icon={<CircleDollarSign className="h-5 w-5" />}
+          items={data.overdueContracts}
+          emptyTitle="지연된 입금이 없습니다"
+          emptyDescription="예정일이 지난 미입금 계약이 생기면 여기에 표시됩니다."
+          moreHref="/contracts"
+          moreLabel="계약 전체"
+        />
 
-          <section className="overflow-hidden rounded-md border border-line bg-white p-5 shadow-[0_14px_35px_rgba(9,34,53,0.08)]">
-            <div className="mb-5 flex flex-wrap items-center justify-between gap-2">
-              <h3 className="text-lg font-bold text-ink">업무 처리 현황</h3>
-              <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm font-medium text-steel">
-                <span>전체 0</span>
-                <span>진행 0</span>
-                <span>대기 0</span>
+        <ActionSection
+          title="세금계산서 발행 대기"
+          description="아직 세금계산서를 발행하지 않은 계약입니다."
+          icon={<ReceiptText className="h-5 w-5" />}
+          items={data.pendingInvoices}
+          emptyTitle="발행할 세금계산서가 없습니다"
+          emptyDescription="발행 대기 상태인 계약이 생기면 여기에 표시됩니다."
+          moreHref="/tax-invoices"
+          moreLabel="세금계산서"
+        />
+
+        <section className="flex flex-col rounded-md border border-line bg-surface">
+          <div className="flex items-start justify-between gap-3 border-b border-line px-5 py-4">
+            <div className="flex items-start gap-3">
+              <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-info-bg text-marine">
+                <CalendarDays className="h-5 w-5" />
+              </span>
+              <div>
+                <h3 className="font-bold text-ink">
+                  오늘 일정
+                  {data.todaySchedule.length > 0 ? (
+                    <span className="ml-2 text-sm font-medium text-steel">{data.todaySchedule.length}건</span>
+                  ) : null}
+                </h3>
+                <p className="mt-1 text-sm text-steel">오늘을 지나가는 일정을 모두 포함합니다.</p>
               </div>
             </div>
-            <div className="overflow-x-auto rounded-md border border-line">
-              <table className="min-w-[680px] w-full border-collapse text-left text-sm">
-                <thead className="bg-paper text-steel">
-                  <tr>
-                    <th className="px-4 py-3 font-medium">구분</th>
-                    <th className="px-4 py-3 font-medium">업무</th>
-                    <th className="px-4 py-3 font-medium">담당</th>
-                    <th className="px-4 py-3 font-medium">기한</th>
-                    <th className="px-4 py-3 font-medium">상태</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-line bg-white">
-                  {dashboardTaskRows.map((row) => (
-                    <tr key={`${row.group}-${row.task}`} className="hover:bg-paper">
-                      <td className="px-4 py-4 font-bold text-marine">{row.group}</td>
-                      <td className="px-4 py-4 font-medium text-ink">{row.task}</td>
-                      <td className="px-4 py-4 text-steel">{row.owner}</td>
-                      <td className="px-4 py-4 text-steel">{row.due}</td>
-                      <td className="px-4 py-4">
-                        <StatusBadge status={row.status} />
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </section>
-        </div>
+            <Link href="/calendar" className="shrink-0 text-sm font-medium text-marine hover:underline">
+              캘린더
+            </Link>
+          </div>
 
-        <aside className="flex min-w-0 flex-col gap-5">
-          <section className="rounded-md border border-line bg-white p-5 shadow-[0_14px_35px_rgba(9,34,53,0.08)]">
-            <div className="mb-5 flex items-center justify-between">
-              <h3 className="text-lg font-bold text-ink">일정 현황</h3>
-              <div className="flex gap-2 text-steel">
-                <ChevronLeft className="h-4 w-4" />
-                <ChevronRight className="h-4 w-4" />
-              </div>
-            </div>
-            <div className="grid min-w-[280px] grid-cols-7 gap-1 text-center text-xs font-bold text-steel">
-              {["일", "월", "화", "수", "목", "금", "토"].map((day) => (
-                <span key={day} className="py-2">{day}</span>
+          {data.todaySchedule.length === 0 ? (
+            <EmptyState title="오늘 일정이 없습니다" description="구글 캘린더를 연동하거나 일정을 추가해보세요." />
+          ) : (
+            <ul className="divide-y divide-line">
+              {data.todaySchedule.map((item) => (
+                <li key={item.id} className="flex items-center gap-4 px-5 py-3.5">
+                  <span className="w-14 shrink-0 text-sm font-semibold tabular-nums text-marine">{item.time}</span>
+                  <p className="min-w-0 flex-1 truncate font-medium text-ink">{item.title}</p>
+                  <span className="shrink-0 text-xs text-steel">{item.category}</span>
+                </li>
               ))}
-              {calendarDays.map((day) => (
-                <span
-                  key={day.day}
-                  className={[
-                    "rounded-md py-2 text-sm",
-                    day.active ? "bg-marine font-bold text-white" : day.muted ? "text-line" : "text-ink"
-                  ].join(" ")}
-                >
-                  {day.day}
-                </span>
-              ))}
-            </div>
-          </section>
-
-          <section className="rounded-md border border-line bg-white p-5 shadow-[0_14px_35px_rgba(9,34,53,0.08)]">
-            <div className="mb-5 flex items-center justify-between">
-              <h3 className="text-lg font-bold text-ink">오늘 일정</h3>
-              <p className="text-sm font-bold text-marine">0건</p>
-            </div>
-            <div className="space-y-3">
-              {dashboardSchedule.map((item) => (
-                <div key={`${item.time}-${item.title}`} className="rounded-md border border-line bg-paper px-3 py-3">
-                  <div className="flex items-center justify-between gap-3">
-                    <p className="truncate text-sm font-bold text-ink">{item.title}</p>
-                    <span className={`shrink-0 rounded-md px-2 py-1 text-xs font-bold ${item.tone}`}>{item.place}</span>
-                  </div>
-                  <p className="mt-2 text-xs text-steel">시간 {item.time}</p>
-                </div>
-              ))}
-            </div>
-          </section>
-
-          <section className="flex flex-1 flex-col rounded-md border border-line bg-white p-5 shadow-[0_14px_35px_rgba(9,34,53,0.08)]">
-            <div className="mb-4 flex items-center gap-2">
-              <Bot className="h-5 w-5 text-marine" />
-              <h3 className="text-lg font-bold text-ink">운영 요약</h3>
-            </div>
-            <div className="space-y-3 text-sm">
-              <p className="rounded-md bg-paper px-3 py-3 text-steel">운영 데이터를 등록하면 이곳에 요약이 표시됩니다.</p>
-              <p className="rounded-md bg-paper px-3 py-3 text-steel">거래처와 계약을 등록해 업무 흐름을 시작하세요.</p>
-              <p className="rounded-md bg-paper px-3 py-3 text-steel">일정과 회의는 등록 후 현황에 반영됩니다.</p>
-            </div>
-          </section>
-        </aside>
-      </section>
+            </ul>
+          )}
+        </section>
+      </div>
     </main>
   );
 }

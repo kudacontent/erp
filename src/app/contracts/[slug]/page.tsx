@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, CalendarDays, CheckCircle2, FileText, FileSignature, ReceiptText } from "lucide-react";
 import { ContractAdvanceButton } from "@/components/contract-advance-button";
+import { EntityActions } from "@/components/ui/entity-actions";
 import {
   contractActivity,
   contractDocuments,
@@ -53,7 +54,26 @@ export default async function ContractDetailPage({ params }: { params: Promise<{
           <h2 className="text-3xl font-bold text-ink">{contract.title}</h2>
           <p className="mt-2 text-sm text-steel">{contract.client} · {contract.id}</p>
         </div>
-        <ContractAdvanceButton slug={contract.slug} />
+        <div className="flex flex-col items-stretch gap-3 sm:items-end">
+          <ContractAdvanceButton slug={contract.slug} />
+          <EntityActions
+            endpoint={`/api/contracts/${contract.slug}`}
+            resourceKey="contract"
+            displayName={contract.title}
+            editLabel="계약 수정"
+            deleteLabel="계약 취소"
+            deleteDescription="계약 상태가 '취소'로 바뀝니다. 기록은 그대로 남고 목록에서 취소 상태로 보입니다. 세금계산서가 발행됐거나 입금이 확인된 계약은 취소되지 않습니다."
+            redirectTo="/contracts"
+            fields={[
+              { key: "projectTitle", label: "계약명", required: true, wide: true },
+              { key: "supplyAmount", label: "공급가액", type: "number", hint: "원 단위" },
+              { key: "vatAmount", label: "부가세", type: "number", hint: "원 단위" },
+              { key: "contractedAt", label: "계약일", type: "date" },
+              { key: "dueDate", label: "입금 예정일", type: "date" },
+              { key: "memo", label: "메모", type: "textarea", wide: true }
+            ]}
+          />
+        </div>
       </section>
 
       <section className="mb-6 rounded-md border border-line bg-white p-5">
