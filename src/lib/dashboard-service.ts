@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { formatWon } from "@/lib/money";
 
 /**
  * 대시보드에 실제 DB 집계를 공급한다.
@@ -23,10 +24,6 @@ function seoulMonthStart() {
   const now = new Date();
   const seoul = new Date(now.getTime() + SEOUL_OFFSET_MS);
   return new Date(Date.UTC(seoul.getUTCFullYear(), seoul.getUTCMonth(), 1) - SEOUL_OFFSET_MS);
-}
-
-function formatMoney(value: bigint | number) {
-  return `${Number(value).toLocaleString("ko-KR")}원`;
 }
 
 function formatDate(date: Date | null) {
@@ -144,14 +141,14 @@ export async function getDashboardData(): Promise<DashboardData> {
 
     return {
       stats,
-      monthRevenue: formatMoney(paidThisMonth._sum.totalAmount ?? BigInt(0)),
+      monthRevenue: formatWon(paidThisMonth._sum.totalAmount ?? BigInt(0)),
       hasDatabase: true,
 
       pendingApprovals: approvals.map((expense) => ({
         id: expense.id,
         title: expense.expenseCategory,
         detail: `${expense.client?.name ?? "거래처 미지정"} · ${formatDate(expense.spentAt)}`,
-        amount: formatMoney(expense.totalAmount),
+        amount: formatWon(expense.totalAmount),
         href: `/expenses/${expense.id}`,
         tone: "승인 대기"
       })),
@@ -160,7 +157,7 @@ export async function getDashboardData(): Promise<DashboardData> {
         id: contract.id,
         title: contract.projectTitle,
         detail: `${contract.client?.name ?? "-"} · 예정일 ${formatDate(contract.dueDate)}`,
-        amount: formatMoney(contract.totalAmount),
+        amount: formatWon(contract.totalAmount),
         href: `/contracts/${contract.id}`,
         tone: "지연"
       })),
@@ -169,7 +166,7 @@ export async function getDashboardData(): Promise<DashboardData> {
         id: contract.id,
         title: contract.projectTitle,
         detail: contract.client?.name ?? "-",
-        amount: formatMoney(contract.totalAmount),
+        amount: formatWon(contract.totalAmount),
         href: `/contracts/${contract.id}`,
         tone: "발행 대기"
       })),

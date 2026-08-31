@@ -2,6 +2,7 @@ import { Camera, CheckCircle2, CreditCard } from "lucide-react";
 import { FilterableExpensesTable } from "@/components/filterable-expenses-table";
 import { ReceiptOcrForm } from "@/components/receipt-ocr-form";
 import { prisma } from "@/lib/prisma";
+import { formatWon } from "@/lib/money";
 
 export const dynamic = "force-dynamic";
 
@@ -12,10 +13,6 @@ const approvalLabels = {
   REJECTED: "반려",
   PAID: "지급 완료"
 } as const;
-
-function formatMoney(value: bigint | number) {
-  return `${Number(value).toLocaleString("ko-KR")}원`;
-}
 
 function parseMerchantName(value: string | null) {
   if (!value) {
@@ -46,7 +43,7 @@ export default async function ExpensesPage() {
       vendor,
       category: expense.expenseCategory,
       title: merchantName || expense.expenseCategory,
-      amount: formatMoney(expense.totalAmount),
+      amount: formatWon(expense.totalAmount),
       method: expense.paymentMethod,
       spentAt: expense.spentAt.toLocaleDateString("ko-KR"),
       approval: approvalLabels[expense.approvalStatus],
@@ -77,11 +74,11 @@ export default async function ExpensesPage() {
   const expenseCategories = [...categoryTotals.entries()].slice(0, 5).map(([label, total]) => ({
     label,
     value: largestCategory ? Math.max(5, Math.round((total / largestCategory) * 100)) : 0,
-    amount: formatMoney(total)
+    amount: formatWon(total)
   }));
   const paymentMethods = [...paymentTotals.entries()].map(([label, count]) => ({ label, value: `${count}건` }));
   const expenseStats = [
-    { label: "이번 달 지출", value: formatMoney(monthTotal), count: `${thisMonth.length}건` },
+    { label: "이번 달 지출", value: formatWon(monthTotal), count: `${thisMonth.length}건` },
     { label: "증빙 등록", value: `${receiptCount}건`, count: "영수증" },
     { label: "승인 대기", value: `${pendingCount}건`, count: "결재 필요" },
     { label: "전체 지출", value: `${records.length}건`, count: "운영 데이터" }
@@ -170,7 +167,7 @@ export default async function ExpensesPage() {
             </div>
             <div className="rounded-md bg-paper px-3 py-3">
               <p className="text-sm text-steel">지급 예정</p>
-              <p className="mt-1 text-xl font-bold text-marine">{formatMoney(pendingPaymentTotal)}</p>
+              <p className="mt-1 text-xl font-bold text-marine">{formatWon(pendingPaymentTotal)}</p>
             </div>
           </div>
         </div>

@@ -6,6 +6,7 @@ import { ExpenseApprovalPanel } from "@/components/expense-approval-panel";
 import { EntityActions } from "@/components/ui/entity-actions";
 import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { formatWon } from "@/lib/money";
 
 export const dynamic = "force-dynamic";
 
@@ -16,10 +17,6 @@ const statusLabels = {
   REJECTED: "반려",
   PAID: "지급 완료"
 } as const;
-
-function formatMoney(value: bigint | number) {
-  return `${Number(value).toLocaleString("ko-KR")}원`;
-}
 
 function formatDate(value: Date) {
   return new Intl.DateTimeFormat("ko-KR", { dateStyle: "medium" }).format(value);
@@ -87,7 +84,7 @@ export default async function ExpenseDetailPage({ params }: { params: Promise<{ 
         <div className="flex flex-col items-stretch gap-3 lg:items-end">
           <div className="rounded-md border border-line bg-white px-4 py-3 text-right">
             <p className="text-xs text-steel">지출 합계</p>
-            <p className="mt-1 text-xl font-bold text-ink">{formatMoney(expense.totalAmount)}</p>
+            <p className="mt-1 text-xl font-bold text-ink">{formatWon(expense.totalAmount)}</p>
           </div>
           {/* 승인·지급이 끝난 지출은 회계 기록이므로 수정·삭제 버튼 대신 사유를 보여준다 */}
           <EntityActions
@@ -128,8 +125,8 @@ export default async function ExpenseDetailPage({ params }: { params: Promise<{ 
               <div><dt className="text-xs text-steel">카테고리</dt><dd className="mt-1 font-medium text-ink">{expense.expenseCategory}</dd></div>
               <div><dt className="text-xs text-steel">결제수단</dt><dd className="mt-1 font-medium text-ink">{expense.paymentMethod}</dd></div>
               <div><dt className="text-xs text-steel">카드 승인번호</dt><dd className="mt-1 font-medium text-ink">{approvalNumber || "-"}</dd></div>
-              <div><dt className="text-xs text-steel">공급가액</dt><dd className="mt-1 font-medium text-ink">{formatMoney(expense.amount)}</dd></div>
-              <div><dt className="text-xs text-steel">부가세</dt><dd className="mt-1 font-medium text-ink">{formatMoney(expense.vatAmount)}</dd></div>
+              <div><dt className="text-xs text-steel">공급가액</dt><dd className="mt-1 font-medium text-ink">{formatWon(expense.amount)}</dd></div>
+              <div><dt className="text-xs text-steel">부가세</dt><dd className="mt-1 font-medium text-ink">{formatWon(expense.vatAmount)}</dd></div>
               <div><dt className="text-xs text-steel">카드 끝 4자리</dt><dd className="mt-1 font-medium text-ink">{cardLast4 || "-"}</dd></div>
               <div><dt className="text-xs text-steel">OCR 신뢰도</dt><dd className="mt-1 font-medium text-ink">{confidence === null ? "-" : `${confidence}%`}</dd></div>
             </dl>

@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { FilePlus2, FileSignature, Loader2, Save } from "lucide-react";
 import { Field } from "@/components/ui/field";
+import { formatWon } from "@/lib/money";
 
 type ClientOption = {
   name: string;
@@ -106,12 +107,12 @@ export function ContractForm({ clients, selectedClientId }: { clients: ClientOpt
               <input {...props} value={form.projectTitle} onChange={(event) => updateField("projectTitle", event.target.value)} />
             )}
           </Field>
-          <Field label="공급가액" required error={errors.supplyAmount?.[0]} hint="단위: 만원">
+          <Field label="공급가액" required error={errors.supplyAmount?.[0]} hint="원 단위로 입력 (예: 2500000)">
             {(props) => (
               <input {...props} inputMode="numeric" value={form.supplyAmount} onChange={(event) => updateField("supplyAmount", event.target.value)} />
             )}
           </Field>
-          <Field label="부가세" required error={errors.vatAmount?.[0]} hint="단위: 만원">
+          <Field label="부가세" required error={errors.vatAmount?.[0]} hint="원 단위로 입력 (예: 250000)">
             {(props) => (
               <input {...props} inputMode="numeric" value={form.vatAmount} onChange={(event) => updateField("vatAmount", event.target.value)} />
             )}
@@ -153,7 +154,7 @@ export function ContractForm({ clients, selectedClientId }: { clients: ClientOpt
             </div>
             <div className="rounded-md bg-paper px-3 py-3">
               <p className="text-sm text-steel">합계</p>
-              <p className="mt-1 text-lg font-bold text-marine">{totalAmount.toLocaleString("ko-KR")}만원</p>
+              <p className="mt-1 text-lg font-bold text-marine">{formatWon(totalAmount)}</p>
             </div>
           </div>
         </section>

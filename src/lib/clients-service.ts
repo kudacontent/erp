@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { formatWon } from "@/lib/money";
 import type { ClientListItem } from "@/lib/clients-data";
 import { clientTypeLabels } from "@/lib/client-schema";
 
@@ -48,7 +49,7 @@ export async function getClientsForList(): Promise<ClientListItem[]> {
         website: client.website ?? "",
         memo: client.memo ?? "",
         contracts: client.contracts.length,
-        revenue: `${totalRevenue.toLocaleString("ko-KR")}만원`,
+        revenue: formatWon(totalRevenue),
         lastMeeting: "-",
         status: "활성"
       };
@@ -98,7 +99,7 @@ export async function getClientDetail(slug: string) {
         website: dbClient.website ?? "",
         memo: dbClient.memo ?? "",
         contracts: dbClient.contracts.length,
-        revenue: `${totalRevenue.toLocaleString("ko-KR")}만원`,
+        revenue: formatWon(totalRevenue),
         lastMeeting: "-",
         status: "활성"
       },
@@ -115,7 +116,7 @@ export async function getClientDetail(slug: string) {
       contracts: dbClient.contracts.map((contract) => ({
         title: contract.projectTitle,
         status: contract.contractStatus,
-        amount: `${Number(contract.totalAmount).toLocaleString("ko-KR")}만원`,
+        amount: formatWon(contract.totalAmount),
         due: contract.dueDate ? contract.dueDate.toISOString().slice(0, 10) : "-"
       })),
       activities: [] as ClientActivity[]

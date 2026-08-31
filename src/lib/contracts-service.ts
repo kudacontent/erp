@@ -1,5 +1,6 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { formatWon } from "@/lib/money";
 import type { ContractRecord } from "@/lib/contracts-data";
 
 export type CreateContractInput = {
@@ -14,7 +15,7 @@ export type CreateContractInput = {
 type DbContract = Prisma.ProjectContractGetPayload<{ include: { client: true } }>;
 
 function formatAmount(value: bigint | number) {
-  return `${Number(value).toLocaleString("ko-KR")}만원`;
+  return formatWon(value);
 }
 
 function formatContractId(contract: DbContract) {
