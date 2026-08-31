@@ -1,9 +1,18 @@
 name: Deploy to Synology NAS
 
+# 자동 실행을 꺼 둔다.
+#
+# 이 워크플로는 NAS_SSH_KEY / NAS_HOST / NAS_USER 등 secrets 가 있어야 동작하는데
+# 설정된 적이 없어 push 마다 몇 초 만에 실패해 왔다 (14회 연속 실패).
+#
+# 현재 배포는 NAS 의 scripts/nas-auto-build.sh 가 담당한다.
+# 그 스크립트가 origin/main 을 fetch + reset 한 뒤 변경이 있으면 컨테이너를 재빌드한다.
+#
+# secrets 를 채워 push 즉시 배포로 되돌리려면 아래 push 트리거 주석을 해제하면 된다.
 on:
-  push:
-    branches:
-      - main
+  # push:
+  #   branches:
+  #     - main
   workflow_dispatch:
 
 concurrency:

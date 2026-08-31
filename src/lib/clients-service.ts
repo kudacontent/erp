@@ -16,6 +16,8 @@ export async function getClientsForList(): Promise<ClientListItem[]> {
 
   try {
     const dbClients = await prisma.client.findMany({
+      // 보관 처리된 거래처는 목록에서 감춘다 (기록은 그대로 남는다)
+      where: { status: "ACTIVE" },
       include: {
         contacts: {
           take: 1,

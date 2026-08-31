@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, Building2, CalendarDays, FileText, Mail, Phone, UserRound } from "lucide-react";
+import { ClientActions } from "@/components/client-actions";
 import { getClientDetail } from "@/lib/clients-service";
 
 export default async function ClientDetailPage({ params }: { params: Promise<{ slug: string }> }) {
@@ -31,7 +32,7 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ s
             </div>
           </div>
         </div>
-        <button className="rounded-md bg-marine px-3 py-2 text-sm font-medium text-white">정보 수정</button>
+        <ClientActions clientId={client.slug} clientName={client.name} />
       </section>
 
       <section className="mb-6 grid gap-4 md:grid-cols-4">

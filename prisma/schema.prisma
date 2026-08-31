@@ -129,6 +129,9 @@ model Client {
   id             String            @id @default(uuid())
   name           String
   clientType     ClientType        @default(OTHER)
+  // 거래처는 실제로 지우지 않는다. 계약·세금계산서 이력이 남아야 하므로
+  // 삭제 요청은 ARCHIVED 로 바꾸고 목록에서 감춘다.
+  status         RecordStatus      @default(ACTIVE)
   businessNumber String?
   ceoName        String?
   phone          String?
