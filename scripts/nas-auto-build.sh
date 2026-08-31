@@ -73,6 +73,12 @@ if [ "$GIT_SYNC" = "1" ] && [ -d .git ]; then
   # 스케줄러가 root 로 돌면 폴더 소유자와 달라 git 이 거부할 수 있다
   git config --global --add safe.directory "$APP_DIR" 2>/dev/null || true
 
+  # 시놀로지는 색인용 @eaDir 폴더를 아무 데나 만든다.
+  # 이게 .git/refs 안에 생기면 git 이 잘못된 ref 로 읽어
+  #   fatal: bad object refs/.../@eaDir/...@SynoEAStream
+  # 으로 fetch 가 통째로 실패한다. 매번 지우고 시작한다.
+  find "$APP_DIR/.git" -type d -name "@eaDir" -prune -exec rm -rf {} + 2>/dev/null || true
+
   if GIT_TERMINAL_PROMPT=0 git fetch --quiet origin "$DEPLOY_BRANCH" 2>>"$LOG_FILE"; then
     local_head="$(git rev-parse HEAD 2>/dev/null || echo none)"
     remote_head="$(git rev-parse "origin/$DEPLOY_BRANCH" 2>/dev/null || echo none)"
