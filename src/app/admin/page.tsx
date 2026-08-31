@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { AdminUsersPanel } from "@/components/admin-users-panel";
+import { TestDataPanel } from "@/components/test-data-panel";
 import { getCurrentUser } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
@@ -19,6 +20,7 @@ export default async function AdminPage() {
         <p className="mt-2 text-sm text-steel">직원 계정, 역할과 접근 상태를 관리합니다.</p>
       </section>
       <AdminUsersPanel currentUserRole={user.role} currentUserId={user.id} />
+      <TestDataPanel />
     </main>
   );
 }

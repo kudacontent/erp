@@ -11,6 +11,9 @@
  *   CLEAR_CONTRACTS=YES CLEAR_TAX_INVOICES=YES node scripts/clear-contracts.mjs
  *
  * 회의·일정은 지우지 않고 계약 연결만 끊는다.
+ * 계약 품목(ContractItem)은 계약과 함께 자동으로 지워진다 (onDelete: Cascade).
+ * 계약으로 전환됐던 견적서는 지우지 않고 '수주 확정' 상태로 되돌린다 —
+ * 견적서 자체는 우리가 실제로 보낸 문서라 계약이 사라져도 기록은 남아야 한다.
  */
 import { PrismaClient } from "@prisma/client";
 
@@ -25,9 +28,11 @@ if (confirmation !== "YES") {
 try {
   const before = {
     contracts: await prisma.projectContract.count(),
+    contractItems: await prisma.contractItem.count(),
     taxInvoices: await prisma.taxInvoice.count(),
     linkedMeetings: await prisma.meeting.count({ where: { contractId: { not: null } } }),
-    linkedEvents: await prisma.calendarEvent.count({ where: { contractId: { not: null } } })
+    linkedEvents: await prisma.calendarEvent.count({ where: { contractId: { not: null } } }),
+    linkedEstimates: await prisma.estimate.count({ where: { contractId: { not: null } } })
   };
 
   console.log("삭제 전 상태:", JSON.stringify(before));
@@ -58,10 +63,20 @@ try {
       });
     }
 
+    // 계약으로 전환됐던 견적서는 '수주 확정' 으로 되돌린다.
+    // FK 가 SET NULL 이라 contractId 는 알아서 비워지지만,
+    // 상태를 CONVERTED 로 두면 어디에도 없는 계약을 가리키는 견적이 된다.
+    const estimates = await tx.estimate.updateMany({
+      where: { contractId: { not: null } },
+      data: { contractId: null, status: "ACCEPTED" }
+    });
+
     const contracts = await tx.projectContract.deleteMany({});
 
     return {
       계약_삭제: contracts.count,
+      계약품목_함께삭제: before.contractItems,
+      견적서_상태복원: estimates.count,
       세금계산서: clearTaxInvoices ? `삭제 ${taxInvoices.count}건` : `연결만 해제 ${taxInvoices.count}건`,
       회의_연결해제: meetings.count,
       일정_연결해제: events.count

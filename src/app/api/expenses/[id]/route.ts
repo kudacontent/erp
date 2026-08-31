@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { FINANCE_READ_ROLES, withAuth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { denyHardDelete, wantsHardDelete } from "@/lib/hard-delete";
 
 export const runtime = "nodejs";
 
@@ -120,7 +121,7 @@ export const PATCH = withAuth(async (request, context, user) => {
  * 지출에는 보관 상태가 따로 없다. 대신 결재가 끝나지 않은 건(작성 중·승인 대기·반려)만
  * 실제로 지운다. 승인·지급이 끝난 건은 회계 기록이므로 삭제를 막는다.
  */
-export const DELETE = withAuth(async (_request, context, user) => {
+export const DELETE = withAuth(async (request, context, user) => {
   const { id } = await context.params;
 
   const expense = await prisma.expense.findUnique({
@@ -132,7 +133,15 @@ export const DELETE = withAuth(async (_request, context, user) => {
     return NextResponse.json({ ok: false, message: "지출 내역을 찾을 수 없습니다." }, { status: 404 });
   }
 
-  if ((LOCKED_STATUSES as readonly string[]).includes(expense.approvalStatus)) {
+  const hard = wantsHardDelete(request);
+
+  if (hard) {
+    const denied = denyHardDelete(user);
+    if (denied) return denied;
+  }
+
+  // 승인·지급된 지출은 잠긴다. 개발 단계 강제 삭제만 이 잠금을 지나간다
+  if (!hard && (LOCKED_STATUSES as readonly string[]).includes(expense.approvalStatus)) {
     return NextResponse.json(
       {
         ok: false,
@@ -150,7 +159,7 @@ export const DELETE = withAuth(async (_request, context, user) => {
   await prisma.auditLog
     .create({
       data: {
-        action: "DELETE",
+        action: hard ? "HARD_DELETE" : "DELETE",
         entityType: "EXPENSE",
         entityId: id,
         beforeData: { category: expense.expenseCategory, totalAmount: expense.totalAmount.toString() },

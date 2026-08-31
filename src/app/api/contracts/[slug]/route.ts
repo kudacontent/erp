@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { FINANCE_READ_ROLES, withAuth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { denyHardDelete, wantsHardDelete } from "@/lib/hard-delete";
 
 export const runtime = "nodejs";
 
@@ -131,7 +132,7 @@ export const PATCH = withAuth(async (request, context, user) => {
  * contractStatus 를 CANCELED 로 바꾼다.
  * 발행된 세금계산서가 있으면 취소도 막는다 (먼저 세금계산서를 처리해야 함).
  */
-export const DELETE = withAuth(async (_request, context, user) => {
+export const DELETE = withAuth(async (request, context, user) => {
   const { slug } = await context.params;
 
   const contract = await prisma.projectContract.findUnique({
@@ -147,6 +148,39 @@ export const DELETE = withAuth(async (_request, context, user) => {
 
   if (!contract) {
     return NextResponse.json({ ok: false, message: "계약을 찾을 수 없습니다." }, { status: 404 });
+  }
+
+  // 개발 단계 강제 삭제: 계약을 실제로 지운다.
+  // 계약 품목은 Cascade 로 함께 사라지고, 세금계산서·회의·일정은 남기고 연결만 끊는다
+  // (그 기록들은 계약과 별개로 존재하는 것들이다).
+  if (wantsHardDelete(request)) {
+    const denied = denyHardDelete(user);
+    if (denied) return denied;
+
+    await prisma.$transaction([
+      prisma.taxInvoice.updateMany({ where: { contractId: slug }, data: { contractId: null } }),
+      prisma.meeting.updateMany({ where: { contractId: slug }, data: { contractId: null } }),
+      prisma.calendarEvent.updateMany({ where: { contractId: slug }, data: { contractId: null } }),
+      prisma.estimate.updateMany({
+        where: { contractId: slug },
+        data: { contractId: null, status: "ACCEPTED" }
+      }),
+      prisma.projectContract.delete({ where: { id: slug } })
+    ]);
+
+    await prisma.auditLog
+      .create({
+        data: {
+          action: "HARD_DELETE",
+          entityType: "PROJECT_CONTRACT",
+          entityId: slug,
+          beforeData: { projectTitle: contract.projectTitle, contractStatus: contract.contractStatus },
+          userId: user.id
+        }
+      })
+      .catch(() => undefined);
+
+    return NextResponse.json({ ok: true, deleted: true, message: `${contract.projectTitle} 계약을 완전히 삭제했습니다.` });
   }
 
   if (contract.contractStatus === "CANCELED") {

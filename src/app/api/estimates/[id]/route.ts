@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { FINANCE_READ_ROLES, withAuth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { buildItemRows, estimateSchema, parseDate, sumRows } from "@/lib/estimate-shared";
+import { denyHardDelete, wantsHardDelete } from "@/lib/hard-delete";
 
 export const runtime = "nodejs";
 
@@ -139,7 +140,7 @@ export const PUT = withAuth(async (request, context, user) => {
  * 성사되지 않은 견적이 목록에 계속 쌓이면 쓸모가 없기 때문이다.
  * 단, 계약으로 전개된 견적은 계약의 근거 문서이므로 지우지 않는다.
  */
-export const DELETE = withAuth(async (_request, context, user) => {
+export const DELETE = withAuth(async (request, context, user) => {
   const { id } = await context.params;
 
   const estimate = await prisma.estimate.findUnique({
@@ -151,7 +152,14 @@ export const DELETE = withAuth(async (_request, context, user) => {
     return NextResponse.json({ ok: false, message: "견적서를 찾을 수 없습니다." }, { status: 404 });
   }
 
-  if (estimate.contractId) {
+  const hard = wantsHardDelete(request);
+
+  if (hard) {
+    const denied = denyHardDelete(user);
+    if (denied) return denied;
+  }
+
+  if (estimate.contractId && !hard) {
     return NextResponse.json(
       { ok: false, message: "계약으로 전환된 견적서입니다. 계약의 근거 문서이므로 삭제할 수 없습니다." },
       { status: 409 }
@@ -163,7 +171,7 @@ export const DELETE = withAuth(async (_request, context, user) => {
   await prisma.auditLog
     .create({
       data: {
-        action: "DELETE",
+        action: hard ? "HARD_DELETE" : "DELETE",
         entityType: "ESTIMATE",
         entityId: id,
         beforeData: { estimateNo: estimate.estimateNo, title: estimate.title },

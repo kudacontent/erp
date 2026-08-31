@@ -5,6 +5,7 @@ import { ArrowLeft, CalendarDays, FileImage, ReceiptText, UserRound } from "luci
 import { ExpenseApprovalPanel } from "@/components/expense-approval-panel";
 import { EntityActions } from "@/components/ui/entity-actions";
 import { getCurrentUser } from "@/lib/auth";
+import { isHardDeleteEnabled } from "@/lib/hard-delete";
 import { prisma } from "@/lib/prisma";
 import { formatWon } from "@/lib/money";
 
@@ -88,6 +89,7 @@ export default async function ExpenseDetailPage({ params }: { params: Promise<{ 
           </div>
           {/* 승인·지급이 끝난 지출은 회계 기록이므로 수정·삭제 버튼 대신 사유를 보여준다 */}
           <EntityActions
+            allowHardDelete={isHardDeleteEnabled() && user.role === "CEO"}
             endpoint={`/api/expenses/${expense.id}`}
             resourceKey="expense"
             displayName="지출 내역"

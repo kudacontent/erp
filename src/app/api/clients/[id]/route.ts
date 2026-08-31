@@ -3,6 +3,7 @@ import { z } from "zod";
 import { withAuth } from "@/lib/auth";
 import { clientTypeOptions } from "@/lib/client-schema";
 import { prisma } from "@/lib/prisma";
+import { denyHardDelete, isHardDeleteEnabled } from "@/lib/hard-delete";
 
 export const runtime = "nodejs";
 
@@ -126,11 +127,38 @@ export const DELETE = withAuth(async (request, context, user) => {
     client._count.contracts + client._count.taxInvoices + client._count.meetings + client._count.expenses;
 
   if (hard) {
-    if (user.role !== "CEO") {
-      return NextResponse.json(
-        { ok: false, message: "영구 삭제는 CEO만 할 수 있습니다." },
-        { status: 403 }
-      );
+    const denied = denyHardDelete(user);
+    if (denied) return denied;
+
+    // 개발 단계에서는 연결된 계약·세금계산서까지 함께 정리한다.
+    // 평소에는 연결이 하나라도 있으면 막는다 (아래 분기).
+    if (isHardDeleteEnabled() && linked > 0) {
+      await prisma.$transaction([
+        prisma.taxInvoice.updateMany({ where: { clientId: id }, data: { clientId: null } }),
+        prisma.meeting.updateMany({ where: { clientId: id }, data: { clientId: null } }),
+        prisma.calendarEvent.updateMany({ where: { clientId: id }, data: { clientId: null } }),
+        prisma.expense.updateMany({ where: { clientId: id }, data: { clientId: null } }),
+        prisma.estimate.updateMany({ where: { clientId: id }, data: { clientId: null } }),
+        prisma.projectContract.deleteMany({ where: { clientId: id } }),
+        prisma.client.delete({ where: { id } })
+      ]);
+
+      await prisma.auditLog
+        .create({
+          data: {
+            action: "HARD_DELETE",
+            entityType: "CLIENT",
+            entityId: id,
+            beforeData: { name: client.name, linked },
+            userId: user.id
+          }
+        })
+        .catch(() => undefined);
+
+      return NextResponse.json({
+        ok: true,
+        message: `${client.name} 거래처와 연결된 계약 ${client._count.contracts}건을 함께 삭제했습니다.`
+      });
     }
 
     if (linked > 0) {

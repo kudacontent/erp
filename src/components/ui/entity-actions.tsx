@@ -37,6 +37,12 @@ type EntityActionsProps = {
   redirectTo?: string;
   /** 수정·삭제를 막아야 할 때 사유. 값이 있으면 버튼 대신 이 문구를 보여준다 */
   lockedReason?: string;
+  /**
+   * 개발 모드 강제 삭제를 열지 여부.
+   * 서버에서 ALLOW_HARD_DELETE 와 CEO 역할을 확인해 넘긴다.
+   * 켜지면 확인 단계에 '완전 삭제' 가 하나 더 붙는다.
+   */
+  allowHardDelete?: boolean;
 };
 
 /**
@@ -57,7 +63,8 @@ export function EntityActions({
   deleteLabel = "삭제",
   deleteDescription,
   redirectTo,
-  lockedReason
+  lockedReason,
+  allowHardDelete = false
 }: EntityActionsProps) {
   const router = useRouter();
   const [mode, setMode] = useState<"idle" | "editing" | "confirmDelete">("idle");
@@ -142,12 +149,12 @@ export function EntityActions({
     }
   }
 
-  async function remove() {
+  async function remove(hard = false) {
     setBusy("deleting");
     setMessage("");
 
     try {
-      const response = await fetch(endpoint, { method: "DELETE" });
+      const response = await fetch(hard ? `${endpoint}?hard=true` : endpoint, { method: "DELETE" });
       const data = await response.json();
 
       if (!response.ok) {
@@ -225,6 +232,23 @@ export function EntityActions({
               취소
             </button>
           </div>
+
+          {allowHardDelete ? (
+            <div className="mt-4 border-t border-warning-border pt-3">
+              <p className="text-xs text-steel">
+                개발 모드입니다. 기록을 남기지 않고 데이터베이스에서 완전히 지울 수 있습니다. 되돌릴 수 없습니다.
+              </p>
+              <button
+                type="button"
+                onClick={() => void remove(true)}
+                disabled={busy === "deleting"}
+                className="mt-2 inline-flex items-center gap-2 rounded-md border border-danger-border bg-surface px-3 py-2 text-sm font-bold text-danger-fg disabled:opacity-60"
+              >
+                <Trash2 className="h-4 w-4" />
+                완전 삭제
+              </button>
+            </div>
+          ) : null}
         </div>
       ) : null}
 

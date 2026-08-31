@@ -13,6 +13,7 @@ import {
 } from "@/lib/contracts-data";
 import { getContractForDetail } from "@/lib/contracts-service";
 import { getCurrentUser } from "@/lib/auth";
+import { isHardDeleteEnabled } from "@/lib/hard-delete";
 
 // 계약 금액과 품목은 등록·수정 즉시 반영되어야 한다.
 // 이 선언이 없으면 빌드 시점 스냅샷이 정적 파일로 굳어 최신 값이 보이지 않는다.
@@ -78,6 +79,7 @@ export default async function ContractDetailPage({ params }: { params: Promise<{
         <div className="flex flex-col items-stretch gap-3 sm:items-end">
           <ContractAdvanceButton slug={contract.slug} />
           <EntityActions
+            allowHardDelete={isHardDeleteEnabled() && user.role === "CEO"}
             endpoint={`/api/contracts/${contract.slug}`}
             resourceKey="contract"
             displayName={contract.title}

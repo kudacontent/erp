@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { withAuth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { denyHardDelete, wantsHardDelete } from "@/lib/hard-delete";
 
 export const runtime = "nodejs";
 
@@ -91,7 +92,7 @@ export const PATCH = withAuth(async (request, context, user) => {
  * 직원을 실제로 지우면 지출 결재자·회의 참석자 기록이 끊긴다.
  * status 를 ARCHIVED 로 바꾸고, 퇴사일이 비어 있으면 오늘로 채운다.
  */
-export const DELETE = withAuth(async (_request, context, user) => {
+export const DELETE = withAuth(async (request, context, user) => {
   const { id } = await context.params;
 
   const employee = await prisma.employee.findUnique({
@@ -101,6 +102,39 @@ export const DELETE = withAuth(async (_request, context, user) => {
 
   if (!employee) {
     return NextResponse.json({ ok: false, message: "직원 정보를 찾을 수 없습니다." }, { status: 404 });
+  }
+
+  // 개발 단계 강제 삭제: 직원을 실제로 지운다.
+  // 로그인 계정이 붙어 있으면 그 계정부터 정리해야 한다 (계정이 고아가 되지 않도록).
+  if (wantsHardDelete(request)) {
+    const denied = denyHardDelete(user);
+    if (denied) return denied;
+
+    if (employee._count.users > 0) {
+      return NextResponse.json(
+        {
+          ok: false,
+          message: `로그인 계정 ${employee._count.users}개가 연결되어 있습니다. 관리자 화면에서 계정을 먼저 삭제하세요.`
+        },
+        { status: 409 }
+      );
+    }
+
+    await prisma.employee.delete({ where: { id } });
+
+    await prisma.auditLog
+      .create({
+        data: {
+          action: "HARD_DELETE",
+          entityType: "EMPLOYEE",
+          entityId: id,
+          beforeData: { name: employee.name },
+          userId: user.id
+        }
+      })
+      .catch(() => undefined);
+
+    return NextResponse.json({ ok: true, deleted: true, message: `${employee.name} 직원 정보를 완전히 삭제했습니다.` });
   }
 
   if (employee.status === "ARCHIVED") {
