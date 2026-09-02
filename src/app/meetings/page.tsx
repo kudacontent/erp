@@ -1,6 +1,7 @@
 import { Bot, CalendarPlus, CheckSquare, MessageSquareText, Users } from "lucide-react";
 import { FilterableMeetingsTable } from "@/components/filterable-meetings-table";
 import { MeetingRecorder, type InitialMeeting } from "@/components/meeting-recorder";
+import { MeetingRecordings, type MeetingRecording } from "@/components/meeting-recordings";
 import { getClientsForList } from "@/lib/clients-service";
 import { prisma } from "@/lib/prisma";
 
@@ -16,12 +17,18 @@ const statusLabels = {
 
 export default async function MeetingsPage({ searchParams }: { searchParams: Promise<{ clientId?: string; meetingId?: string }> }) {
   const params = await searchParams;
-  const [clients, records] = await Promise.all([
+  const [clients, records, recordingRows] = await Promise.all([
     getClientsForList(),
     prisma.meeting.findMany({
       include: { client: true, _count: { select: { attendees: true } } },
       orderBy: { startedAt: "desc" },
       take: 200
+    }),
+    // 회의 녹음은 Attachment 에 MEETING 으로 붙는다
+    prisma.attachment.findMany({
+      where: { entityType: "MEETING" },
+      orderBy: { createdAt: "desc" },
+      take: 50
     })
   ]);
   const meetings = records.map((meeting) => ({
@@ -34,6 +41,21 @@ export default async function MeetingsPage({ searchParams }: { searchParams: Pro
     status: statusLabels[meeting.status],
     minutes: meeting.minutes ? "회의록 있음" : "회의록 없음"
   }));
+  const meetingTitleById = new Map(records.map((meeting) => [meeting.id, meeting.title]));
+  const recordings: MeetingRecording[] = recordingRows.map((attachment) => {
+    const megabytes = Number(attachment.fileSize) / (1024 * 1024);
+
+    return {
+      id: attachment.id,
+      meetingId: attachment.entityId,
+      meetingTitle: meetingTitleById.get(attachment.entityId) ?? "삭제된 회의",
+      fileName: attachment.fileName,
+      fileUrl: attachment.fileUrl,
+      sizeLabel: megabytes >= 1 ? `${megabytes.toFixed(1)}MB` : `${Math.max(1, Math.round(megabytes * 1024))}KB`,
+      recordedAt: attachment.createdAt.toLocaleDateString("ko-KR")
+    };
+  });
+
   const selectedMeetingRecord = params.meetingId ? records.find((meeting) => meeting.id === params.meetingId) : null;
   const selectedMeeting: InitialMeeting | null = selectedMeetingRecord
     ? {
@@ -96,6 +118,8 @@ export default async function MeetingsPage({ searchParams }: { searchParams: Pro
           </div>
         ))}
       </section>
+
+      <MeetingRecordings recordings={recordings} />
 
       <section className="mb-6 grid gap-4 xl:grid-cols-[1fr_360px]">
         <FilterableMeetingsTable meetings={meetings} statusOptions={["전체", "예정", "진행 중", "후속 조치", "완료"]} />

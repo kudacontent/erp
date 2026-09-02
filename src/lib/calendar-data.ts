@@ -42,12 +42,6 @@ export type CalendarTodayEvent = {
   syncStatus: string;
 };
 
-export type CalendarCategory = {
-  label: string;
-  count: number;
-  color: string;
-};
-
 export type CalendarMonthEvent = {
   id: string;
   date: string;

@@ -106,6 +106,8 @@ model User {
   notifications Notification[]
   taxInvoices   TaxInvoice[]   @relation("TaxInvoiceCreatedBy")
   estimates     Estimate[]     @relation("EstimateCreatedBy")
+  invoices      Invoice[]      @relation("InvoiceCreatedBy")
+  inspections   ProjectContract[] @relation("ContractInspector")
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
 }
@@ -144,6 +146,7 @@ model Client {
   contacts       ClientContact[]
   contracts      ProjectContract[]
   estimates      Estimate[]
+  invoices       Invoice[]
   expenses       Expense[]
   taxInvoices    TaxInvoice[]
   meetings       Meeting[]
@@ -181,6 +184,18 @@ model ProjectContract {
   totalAmount    BigInt
   items          ContractItem[]
   estimates      Estimate[]
+  invoices       Invoice[]
+  /// 검사 작업. 우리 업무는 견적 → 스케줄 → 검사 → 인보이스 → 세금계산서 → 입금 순으로 흐른다.
+  /// 검사는 우리가 수행하는 용역 자체이고, 이 작업이 끝나야 청구로 넘어간다.
+  inspectionStatus InspectionStatus @default(NOT_STARTED)
+  /// 실제로 작업을 나간 날
+  inspectionStartedAt DateTime?
+  /// 작업을 마친 날. 청구 시점의 근거가 된다
+  inspectionDoneAt    DateTime?
+  inspectorId         String?
+  inspector           User?        @relation("ContractInspector", fields: [inspectorId], references: [id])
+  /// 현장에서 확인한 내용, 특이사항
+  inspectionMemo      String?
   billingStatus  BillingStatus   @default(PENDING)
   paymentStatus  PaymentStatus   @default(UNPAID)
   contractStatus ContractStatus  @default(DRAFT)
@@ -311,6 +326,93 @@ model EstimateItem {
 
   @@index([estimateId, sortOrder])
 }
+
+/// 검사 작업 진행 상태.
+///
+/// 검사는 우리가 거래처에 제공하는 실제 용역이다. 합격·불합격을 판정하는 절차가 아니라,
+/// 일정을 잡고 현장에 나가 수행하는 작업 그 자체다.
+/// 이 작업이 끝나야 청구(인보이스)로 넘어간다.
+enum InspectionStatus {
+  /// 아직 시작 전 (일정만 잡힌 상태 포함)
+  NOT_STARTED
+  IN_PROGRESS
+  DONE
+  /// 거래처 사정이나 현장 문제로 멈춘 상태
+  ON_HOLD
+}
+
+/// 청구서(인보이스) 상태.
+enum InvoiceStatus {
+  DRAFT
+  SENT
+  PAID
+  VOID
+}
+
+/// 인보이스(청구서).
+///
+/// 세금계산서와 다르다. 세금계산서는 국세청에 신고되는 법정 문서이고,
+/// 인보이스는 "이 금액을 이 날짜까지 보내 주세요" 라고 거래처에 보내는 청구 문서다.
+/// 실무에서는 인보이스를 먼저 보내고, 입금이 확정되거나 월말에 세금계산서를 끊는다.
+///
+/// 그동안 인보이스 화면은 인쇄만 되고 저장이 되지 않아서,
+/// 누구에게 얼마를 언제 청구했는지가 어디에도 남지 않았다.
+model Invoice {
+  id                     String           @id @default(uuid())
+  invoiceNo              String           @unique
+  title                  String
+  clientId               String?
+  client                 Client?          @relation(fields: [clientId], references: [id])
+  contractId             String?
+  contract               ProjectContract? @relation(fields: [contractId], references: [id])
+  recipient              String?
+  reference              String?
+  status                 InvoiceStatus    @default(DRAFT)
+  issuedAt               DateTime?
+  dueDate                DateTime?
+  supplyAmount           BigInt           @default(0)
+  vatAmount              BigInt           @default(0)
+  totalAmount            BigInt           @default(0)
+  /// 입금 계좌 안내 등 청구 조건
+  paymentTerms           String?
+  otherContent           String?
+  supplierNumber         String?
+  supplierName           String?
+  supplierRepresentative String?
+  supplierAddress        String?
+  supplierPhone          String?
+  supplierEmail          String?
+  memo                   String?
+  createdById            String?
+  createdBy              User?            @relation("InvoiceCreatedBy", fields: [createdById], references: [id])
+  items                  InvoiceItem[]
+  createdAt              DateTime         @default(now())
+  updatedAt              DateTime         @updatedAt
+
+  @@index([clientId])
+  @@index([contractId])
+  @@index([status, issuedAt])
+}
+
+model InvoiceItem {
+  id           String  @id @default(uuid())
+  invoiceId    String
+  invoice      Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  section      String?
+  sortOrder    Int     @default(0)
+  name         String
+  spec         String?
+  unit         String?
+  quantity     Decimal @default(1) @db.Decimal(14, 2)
+  unitPrice    BigInt  @default(0)
+  supplyAmount BigInt  @default(0)
+  vatAmount    BigInt  @default(0)
+  taxType      TaxType @default(TAXABLE)
+  memo         String?
+
+  @@index([invoiceId, sortOrder])
+}
+
 
 
 model Expense {

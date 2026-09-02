@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import type { ChangeEvent } from "react";
 import { useRouter } from "next/navigation";
-import { FilePenLine, Loader2, Mic, Pause, Play, RefreshCw, Save, Square, Waves } from "lucide-react";
+import { FilePenLine, Loader2, Mic, Pause, Play, RefreshCw, Save, Square, Waves, Upload } from "lucide-react";
 
 type RecorderStatus = "idle" | "saving" | "recording" | "transcribing" | "saved" | "error";
 type ClientOption = { id: string; name: string };
@@ -267,6 +268,7 @@ export function MeetingRecorder({
   const [stream, setStream] = useState<MediaStream | null>(null);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
+  const [skipTranscription, setSkipTranscription] = useState(false);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const audioCaptureRef = useRef<PcmCapture | null>(null);
@@ -343,46 +345,76 @@ export function MeetingRecorder({
     }
   }
 
-  async function uploadRecording(blob: Blob, targetMeetingId: string) {
+  /**
+   * 녹음 파일을 서버로 보낸다.
+   *
+   * FormData 가 아니라 파일 본문을 그대로 실어 보낸다.
+   * FormData 로 보내면 서버가 전체를 메모리에 올린 뒤에야 파일을 꺼낼 수 있어서,
+   * 긴 회의 녹음을 올릴 때 NAS 컨테이너가 메모리 부족으로 죽었다.
+   * 본문을 통째로 보내면 서버가 받는 즉시 디스크로 흘려보낼 수 있다.
+   * 나머지 항목은 주소 뒤에 붙인다.
+   */
+  async function uploadRecording(blob: Blob, targetMeetingId: string, options: { fileName?: string; skipTranscription?: boolean } = {}) {
     pendingBlobRef.current = blob;
     setStatus("transcribing");
-    setMessage("녹음 파일을 서버로 전송하고 회의록으로 변환하는 중입니다. 잠시 기다려주세요.");
-    const formData = new FormData();
+    setMessage(
+      options.skipTranscription
+        ? "녹음 파일을 서버로 전송해 MP3로 보관하는 중입니다."
+        : "녹음 파일을 서버로 전송하고 회의록으로 변환하는 중입니다. 긴 녹음은 시간이 걸립니다."
+    );
+
     const fileExtension = blob.type.includes("wav") ? "wav" : blob.type.includes("mp4") ? "mp4" : "webm";
-    formData.append("file", blob, `meeting-${Date.now()}.${fileExtension}`);
-    formData.append("meetingId", targetMeetingId);
-    formData.append("title", title);
-    formData.append("meetingType", meetingType);
-    formData.append("clientId", clientId);
-    formData.append("location", location);
-    formData.append("agenda", agenda);
-    formData.append("startedAt", recordingStartedAtRef.current || toIso(startedAt));
-    const controller = new AbortController();
-    const timeout = window.setTimeout(() => controller.abort(), 180_000);
+    const params = new URLSearchParams({
+      meetingId: targetMeetingId,
+      title,
+      meetingType,
+      clientId,
+      location,
+      agenda,
+      startedAt: recordingStartedAtRef.current || toIso(startedAt),
+      fileName: options.fileName || `meeting-${Date.now()}.${fileExtension}`
+    });
+
+    if (options.skipTranscription) params.set("skipTranscription", "true");
 
     try {
       if (!navigator.onLine) throw new Error("현재 인터넷 연결이 끊겨 있습니다. 연결 후 재전송하세요.");
-      const response = await fetch("/api/meetings/record", { method: "POST", body: formData, signal: controller.signal });
+
+      const response = await fetch(`/api/meetings/record?${params.toString()}`, {
+        method: "POST",
+        headers: { "Content-Type": blob.type || "application/octet-stream" },
+        body: blob
+      });
+
       const responseText = await response.text();
-      let data: { message?: string; meeting?: { minutes?: string } } = {};
+      let data: { message?: string; transcribed?: boolean; meeting?: { minutes?: string } } = {};
       try { data = responseText ? JSON.parse(responseText) as typeof data : {}; } catch { /* The proxy may return HTML on a network failure. */ }
       if (!response.ok) throw new Error(data.message ?? `서버가 녹음 파일을 처리하지 못했습니다. (${response.status})`);
       setMinutes(data.meeting?.minutes ?? minutes);
       pendingBlobRef.current = null;
       setStatus("saved");
-      setMessage("녹음과 전사된 회의록이 저장되었습니다.");
+      // 전사에 실패해도 녹음은 저장된다. 그 경우 서버가 이유를 담아 보낸다
+      setMessage(data.message ?? (data.transcribed === false
+        ? "녹음을 MP3로 보관했습니다. 자동 전사는 되지 않았습니다."
+        : "녹음을 MP3로 보관하고 회의록을 전사했습니다."));
       router.refresh();
     } catch (error) {
-      const messageText = error instanceof DOMException && error.name === "AbortError"
-        ? "서버 응답 시간이 초과되었습니다. 인터넷 상태를 확인한 뒤 녹음 파일을 재전송하세요."
-        : error instanceof Error
-          ? error.message
-          : "네트워크 오류로 녹음 파일을 전송하지 못했습니다. 녹음 파일을 재전송하세요.";
       setStatus("error");
-      setMessage(messageText);
-    } finally {
-      window.clearTimeout(timeout);
+      setMessage(error instanceof Error ? error.message : "네트워크 오류로 녹음 파일을 전송하지 못했습니다. 녹음 파일을 재전송하세요.");
     }
+  }
+
+  async function handleFileUpload(event: ChangeEvent<HTMLInputElement>) {
+    const picked = event.target.files?.[0];
+    event.target.value = "";
+
+    if (!picked) return;
+
+    const targetMeetingId = await saveDraft();
+    if (!targetMeetingId) return;
+
+    recordingStartedAtRef.current = recordingStartedAtRef.current || toIso(startedAt);
+    await uploadRecording(picked, targetMeetingId, { fileName: picked.name, skipTranscription: skipTranscription });
   }
 
   async function startRecording() {
@@ -472,7 +504,7 @@ export function MeetingRecorder({
             <FilePenLine className="h-5 w-5 text-marine" />
             <h3 className="font-bold text-ink">{editing ? "회의록 수정 및 녹음" : "회의록 생성 및 녹음"}</h3>
           </div>
-          <p className="mt-1 text-sm text-steel">초안을 먼저 저장한 뒤 같은 회의록에서 녹음을 시작할 수 있습니다.</p>
+          <p className="mt-1 text-sm text-steel">직접 녹음하거나, 휴대폰·화상회의로 만든 녹음 파일을 올릴 수 있습니다. 모든 녹음은 MP3로 보관됩니다.</p>
         </div>
         {editing ? <button type="button" onClick={newMeeting} className="text-sm font-bold text-marine hover:underline">새 회의록</button> : null}
       </div>
@@ -523,6 +555,31 @@ export function MeetingRecorder({
         <button type="button" onClick={() => void saveDraft()} disabled={disabled} className="inline-flex items-center justify-center gap-2 rounded-md border border-line px-4 py-2.5 text-sm font-bold text-steel hover:border-marine hover:text-marine disabled:cursor-not-allowed disabled:opacity-60"><Save className="h-4 w-4" /> 회의록 저장</button>
         {status !== "recording" ? <button type="button" onClick={() => void startRecording()} disabled={disabled} className="inline-flex items-center justify-center gap-2 rounded-md bg-marine px-4 py-2.5 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-60">{status === "saving" || status === "transcribing" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Mic className="h-4 w-4" />} 녹음 시작</button> : <span className="inline-flex items-center gap-2 text-sm font-medium text-steel"><Waves className="h-4 w-4 text-[#ff3b30]" /> 음성 메모처럼 녹음 중입니다.</span>}
         {pendingBlobRef.current ? <button type="button" onClick={() => meetingId && void uploadRecording(pendingBlobRef.current as Blob, meetingId)} disabled={status === "transcribing"} className="inline-flex items-center gap-2 rounded-md bg-[#e8f5fb] px-3 py-2.5 text-sm font-bold text-marine disabled:opacity-60"><RefreshCw className="h-4 w-4" /> 녹음 파일 재전송</button> : null}
+        {status !== "recording" ? (
+          <label className={`inline-flex items-center justify-center gap-2 rounded-md border border-line px-4 py-2.5 text-sm font-bold text-steel hover:border-marine hover:text-marine ${disabled ? "cursor-not-allowed opacity-60" : "cursor-pointer"}`}>
+            <Upload className="h-4 w-4" />
+            녹음 파일 올리기
+            <input
+              type="file"
+              accept="audio/*,.m4a,.amr,.wma,.opus"
+              className="sr-only"
+              onChange={(event) => void handleFileUpload(event)}
+              disabled={disabled}
+            />
+          </label>
+        ) : null}
+        {status !== "recording" ? (
+          <label className="inline-flex cursor-pointer items-center gap-2 text-sm text-steel">
+            <input
+              type="checkbox"
+              checked={skipTranscription}
+              onChange={(event) => setSkipTranscription(event.target.checked)}
+              disabled={disabled}
+              className="h-4 w-4 accent-[#0b5f8a]"
+            />
+            전사 없이 보관만
+          </label>
+        ) : null}
         {status === "saving" ? <span className="text-sm text-steel">저장 중…</span> : null}
         {status === "transcribing" ? <span className="text-sm text-steel">전사 중…</span> : null}
         {message ? <p className={`basis-full text-sm ${status === "error" ? "text-danger-fg" : "text-marine"}`}>{message}</p> : null}

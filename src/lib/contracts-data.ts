@@ -1,9 +1,3 @@
-export const contractStats = [
-  { label: "이번 달 계약", value: "0건", amount: "0원" },
-  { label: "입금 대기", value: "0건", amount: "0원" },
-  { label: "발행 대기", value: "0건", amount: "0원" },
-  { label: "정산 완료", value: "0건", amount: "0원" }
-];
 
 export type ContractRecord = {
   slug: string;
@@ -20,10 +14,6 @@ export type ContractRecord = {
 };
 
 export const contracts: ContractRecord[] = [];
-
-export function getContractBySlug(_slug: string) {
-  return undefined;
-}
 
 export const contractFiles: Array<{ name: string; type: string; date: string }> = [];
 
@@ -118,8 +108,4 @@ export function getContractNextActions(contract: ContractRecord) {
   ];
 }
 
-
 export const contractActivity: Array<{ date: string; title: string; type: string }> = [];
-export const billingQueue: Array<{ client: string; title: string; amount: string; due: string }> = [];
-export const paymentRisks: Array<{ client: string; amount: string; delay: string }> = [];
-export const settlementSteps: Array<{ label: string; value: number }> = [];

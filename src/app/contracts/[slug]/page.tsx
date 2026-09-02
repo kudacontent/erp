@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { ArrowLeft, CalendarDays, CheckCircle2, FileText, FileSignature, ReceiptText } from "lucide-react";
+import { AlertTriangle, ArrowLeft, CalendarDays, CheckCircle2, FileText, FileSignature, ReceiptText } from "lucide-react";
 import { ContractAdvanceButton } from "@/components/contract-advance-button";
 import { ContractItems } from "@/components/contract-items";
 import { EntityActions } from "@/components/ui/entity-actions";
@@ -8,10 +8,11 @@ import {
   contractActivity,
   getContractDocuments,
   contractFiles,
-  getContractLifecycle,
   getContractNextActions
 } from "@/lib/contracts-data";
-import { getContractForDetail } from "@/lib/contracts-service";
+import { getContractForDetail, getContractLifecycleSignals } from "@/lib/contracts-service";
+import { buildContractLifecycle, currentStepLabel } from "@/lib/contract-lifecycle";
+import { ContractInspection } from "@/components/contract-inspection";
 import { getCurrentUser } from "@/lib/auth";
 import { isHardDeleteEnabled } from "@/lib/hard-delete";
 
@@ -31,6 +32,11 @@ function lifecycleClass(state: string) {
 
   if (state === "active") {
     return "border-marine bg-marine text-white";
+  }
+
+  // 검사 불합격이나 부분 입금처럼 사람이 손을 대야 하는 단계
+  if (state === "attention") {
+    return "border-warning-border bg-warning-bg text-warning-fg";
   }
 
   return "border-line bg-paper text-steel";
@@ -62,7 +68,9 @@ export default async function ContractDetailPage({ params }: { params: Promise<{
     notFound();
   }
 
-  const lifecycle = getContractLifecycle(contract);
+  const lifecycleData = await getContractLifecycleSignals(slug);
+  const lifecycle = lifecycleData ? buildContractLifecycle(lifecycleData.signals) : [];
+  const currentStep = currentStepLabel(lifecycle);
   const nextActions = getContractNextActions(contract);
 
   return (
@@ -103,16 +111,21 @@ export default async function ContractDetailPage({ params }: { params: Promise<{
         <div className="mb-5 flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <h3 className="font-bold text-ink">계약 진행 단계</h3>
-            <p className="mt-1 text-sm text-steel">{contract.client} 계약의 현재 처리 위치</p>
+            <p className="mt-1 text-sm text-steel">
+              견적서 → 스케줄 → 검사 → 인보이스 → 세금계산서 → 입금
+            </p>
           </div>
-          <p className="text-sm font-bold text-marine">{contract.status} · {contract.billing} · {contract.payment}</p>
+          <p className="text-sm font-bold text-marine">
+            {currentStep ? `지금 할 일: ${currentStep}` : "진행할 단계가 없습니다"}
+          </p>
         </div>
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-7">
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
           {lifecycle.map((step, index) => (
             <div key={step.key} className={`rounded-md border p-4 ${lifecycleClass(step.state)}`}>
               <div className="mb-4 flex items-center justify-between gap-3">
                 <span className="text-xs font-bold">{String(index + 1).padStart(2, "0")}</span>
                 {step.state === "done" ? <CheckCircle2 className="h-4 w-4" /> : null}
+                {step.state === "attention" ? <AlertTriangle className="h-4 w-4" /> : null}
               </div>
               <p className="font-bold">{step.label}</p>
               <p className={["mt-2 text-xs leading-5", step.state === "active" ? "text-white/80" : "text-steel"].join(" ")}>
@@ -141,6 +154,16 @@ export default async function ContractDetailPage({ params }: { params: Promise<{
           <p className="mt-3 text-2xl font-bold text-ink">{contract.due}</p>
         </div>
       </section>
+
+      {lifecycleData ? (
+        <div className="mb-6">
+          <ContractInspection
+            slug={contract.slug}
+            inspection={lifecycleData.inspection}
+            canEdit={FINANCE_WRITE.includes(user.role)}
+          />
+        </div>
+      ) : null}
 
       <div className="mb-6">
         <ContractItems slug={contract.slug} canEdit={FINANCE_WRITE.includes(user.role)} />

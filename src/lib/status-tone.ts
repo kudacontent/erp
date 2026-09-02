@@ -85,6 +85,13 @@ const STATUS_TONES: Record<string, StatusTone> = {
   DRAFT: "neutral",
   CANCELED: "neutral",
 
+  // ── 검사 작업 상태 ──────────────────────────────────────
+  "검사 전": "neutral",
+  "검사 중": "info",
+  "검사 완료": "success",
+  IN_PROGRESS: "info",
+  ON_HOLD: "warning",
+
   // ── 견적 상태 ───────────────────────────────────────────
   // ("작성 중"·REJECTED 는 위에 이미 있다)
   발송: "info",

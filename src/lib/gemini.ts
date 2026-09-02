@@ -1,4 +1,6 @@
 const GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models";
+const GEMINI_FILES_URL = "https://generativelanguage.googleapis.com/v1beta/files";
+const GEMINI_UPLOAD_URL = "https://generativelanguage.googleapis.com/upload/v1beta/files";
 const DEFAULT_TIMEOUT_MS = 45_000;
 const DEFAULT_FALLBACK_MODELS = ["gemini-3.5-flash-lite", "gemini-2.5-flash-lite"];
 
@@ -85,13 +87,21 @@ function delay(milliseconds: number) {
 }
 
 async function generateGeminiText({
-  data,
-  mimeType,
+  mediaPart,
   prompt,
   schema,
   maxOutputTokens = 2048,
-  operationLabel
-}: GenerateMediaTextInput & { schema?: GeminiSchema; operationLabel: string }) {
+  operationLabel,
+  timeoutMs
+}: {
+  /** inline_data (작은 파일) 또는 file_data (Files API 로 올린 큰 파일) */
+  mediaPart: Record<string, unknown>;
+  prompt: string;
+  schema?: GeminiSchema;
+  maxOutputTokens?: number;
+  operationLabel: string;
+  timeoutMs?: number;
+}) {
   const apiKey = process.env.GEMINI_API_KEY?.trim();
 
   if (!apiKey) {
@@ -106,7 +116,7 @@ async function generateGeminiText({
 
   for (const [index, model] of models.entries()) {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), Number(process.env.GEMINI_TIMEOUT_MS) || DEFAULT_TIMEOUT_MS);
+    const timeout = setTimeout(() => controller.abort(), timeoutMs ?? Number(process.env.GEMINI_TIMEOUT_MS) ?? DEFAULT_TIMEOUT_MS);
     let response: Response;
 
     try {
@@ -119,15 +129,7 @@ async function generateGeminiText({
         body: JSON.stringify({
           contents: [
             {
-              parts: [
-                {
-                  inline_data: {
-                    mime_type: mimeType,
-                    data
-                  }
-                },
-                { text: prompt }
-              ]
+              parts: [mediaPart, { text: prompt }]
             }
           ],
           generationConfig: {
@@ -189,9 +191,197 @@ async function generateGeminiText({
 }
 
 export async function generateVisionJson({ data, mimeType, prompt, schema }: GenerateVisionJsonInput) {
-  return cleanJsonText(await generateGeminiText({ data, mimeType, prompt, schema, operationLabel: "Google Gemini OCR" }));
+  return cleanJsonText(
+    await generateGeminiText({
+      mediaPart: { inline_data: { mime_type: mimeType, data } },
+      prompt,
+      schema,
+      operationLabel: "Google Gemini OCR"
+    })
+  );
 }
 
 export async function generateTextFromMedia({ data, mimeType, prompt, maxOutputTokens = 8192 }: GenerateMediaTextInput) {
-  return (await generateGeminiText({ data, mimeType, prompt, maxOutputTokens, operationLabel: "Google Gemini 회의 전사" })).trim();
+  return (
+    await generateGeminiText({
+      mediaPart: { inline_data: { mime_type: mimeType, data } },
+      prompt,
+      maxOutputTokens,
+      operationLabel: "Google Gemini 회의 전사"
+    })
+  ).trim();
+}
+
+/**
+ * Files API 로 올린 파일을 가리켜 전사한다.
+ *
+ * 요청 본문에 오디오를 base64 로 실어 보내는 방식(inline)은 전체 요청이 20MB 를 넘을 수 없어서,
+ * 실무에서는 40분쯤 되는 회의부터 막혔다.
+ * Files API 로 올리면 파일당 2GB, 오디오 9.5시간까지 처리된다.
+ *
+ * 긴 오디오는 모델이 답하는 데도 시간이 걸리므로 기본 타임아웃을 길게 잡는다.
+ */
+export async function generateTextFromFileUri({
+  fileUri,
+  mimeType,
+  prompt,
+  maxOutputTokens = 8192,
+  timeoutMs = 15 * 60 * 1000
+}: {
+  fileUri: string;
+  mimeType: string;
+  prompt: string;
+  maxOutputTokens?: number;
+  timeoutMs?: number;
+}) {
+  return (
+    await generateGeminiText({
+      mediaPart: { file_data: { mime_type: mimeType, file_uri: fileUri } },
+      prompt,
+      maxOutputTokens,
+      timeoutMs,
+      operationLabel: "Google Gemini 회의 전사"
+    })
+  ).trim();
+}
+
+function requireApiKey() {
+  const apiKey = process.env.GEMINI_API_KEY?.trim();
+
+  if (!apiKey) {
+    throw new GeminiApiError(
+      "GEMINI_API_KEY가 설정되지 않았습니다. Google AI Studio API 키를 서버 환경변수에 추가하세요.",
+      503
+    );
+  }
+
+  return apiKey;
+}
+
+type GeminiFile = { name: string; uri: string; state: string };
+
+/**
+ * 파일을 Gemini Files API 로 올린다.
+ *
+ * 두 단계로 나뉜 프로토콜이다.
+ *   1) 업로드를 시작하겠다고 알리고 전용 업로드 주소를 받는다
+ *   2) 그 주소로 파일 내용을 보낸다
+ *
+ * 파일 내용은 스트림으로 흘려보낸다 — 두 시간짜리 녹음을 통째로 메모리에 올리지 않기 위해서다.
+ * 올린 파일은 48시간 뒤 구글 쪽에서 자동으로 지워진다. 원본은 우리 NAS 에 남는다.
+ */
+export async function uploadFileToGemini({
+  filePath,
+  mimeType,
+  sizeBytes,
+  displayName
+}: {
+  filePath: string;
+  mimeType: string;
+  sizeBytes: number;
+  displayName: string;
+}): Promise<GeminiFile> {
+  const apiKey = requireApiKey();
+  const { createReadStream } = await import("node:fs");
+  const { Readable } = await import("node:stream");
+
+  const startResponse = await fetch(GEMINI_UPLOAD_URL, {
+    method: "POST",
+    headers: {
+      "x-goog-api-key": apiKey,
+      "X-Goog-Upload-Protocol": "resumable",
+      "X-Goog-Upload-Command": "start",
+      "X-Goog-Upload-Header-Content-Length": String(sizeBytes),
+      "X-Goog-Upload-Header-Content-Type": mimeType,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({ file: { display_name: displayName } })
+  });
+
+  if (!startResponse.ok) {
+    throw new GeminiApiError(
+      `녹음 파일 업로드를 시작하지 못했습니다. (${startResponse.status})`,
+      normalizeStatus(startResponse.status)
+    );
+  }
+
+  const uploadUrl = startResponse.headers.get("x-goog-upload-url");
+
+  if (!uploadUrl) {
+    throw new GeminiApiError("업로드 주소를 받지 못했습니다.", 502);
+  }
+
+  const uploadResponse = await fetch(uploadUrl, {
+    method: "POST",
+    headers: {
+      "Content-Length": String(sizeBytes),
+      "X-Goog-Upload-Offset": "0",
+      "X-Goog-Upload-Command": "upload, finalize"
+    },
+    body: Readable.toWeb(createReadStream(filePath)) as ReadableStream,
+    // 스트림을 본문으로 보낼 때 필요하다 (undici 규칙)
+    duplex: "half"
+  } as RequestInit & { duplex: "half" });
+
+  if (!uploadResponse.ok) {
+    throw new GeminiApiError(
+      `녹음 파일을 업로드하지 못했습니다. (${uploadResponse.status})`,
+      normalizeStatus(uploadResponse.status)
+    );
+  }
+
+  const payload = (await uploadResponse.json()) as { file?: GeminiFile };
+
+  if (!payload.file?.uri || !payload.file?.name) {
+    throw new GeminiApiError("업로드 결과를 읽을 수 없습니다.", 502);
+  }
+
+  return payload.file;
+}
+
+/**
+ * 업로드한 파일이 처리될 때까지 기다린다.
+ *
+ * 올린 직후에는 PROCESSING 상태이고, 이때 전사를 요청하면 거부된다.
+ * 오디오는 보통 몇 초 안에 ACTIVE 가 된다.
+ */
+export async function waitForGeminiFile(name: string, timeoutMs = 5 * 60 * 1000) {
+  const apiKey = requireApiKey();
+  const deadline = Date.now() + timeoutMs;
+
+  while (Date.now() < deadline) {
+    const response = await fetch(`${GEMINI_FILES_URL}/${encodeURIComponent(name.replace(/^files\//, ""))}`, {
+      headers: { "x-goog-api-key": apiKey }
+    });
+
+    if (!response.ok) {
+      throw new GeminiApiError(`업로드한 파일 상태를 확인하지 못했습니다. (${response.status})`, normalizeStatus(response.status));
+    }
+
+    const file = (await response.json()) as GeminiFile;
+
+    if (file.state === "ACTIVE") {
+      return file;
+    }
+
+    if (file.state === "FAILED") {
+      throw new GeminiApiError("업로드한 녹음 파일을 구글이 처리하지 못했습니다.", 502);
+    }
+
+    await delay(2000);
+  }
+
+  throw new GeminiApiError("업로드한 녹음 파일이 처리되기를 기다리다 시간이 초과되었습니다.", 504);
+}
+
+/** 전사가 끝난 파일을 지운다. 실패해도 48시간 뒤 자동 삭제되므로 무시한다 */
+export async function deleteGeminiFile(name: string) {
+  try {
+    await fetch(`${GEMINI_FILES_URL}/${encodeURIComponent(name.replace(/^files\//, ""))}`, {
+      method: "DELETE",
+      headers: { "x-goog-api-key": requireApiKey() }
+    });
+  } catch {
+    // 무시
+  }
 }

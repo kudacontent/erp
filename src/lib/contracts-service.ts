@@ -178,3 +178,52 @@ export async function advanceContractStatus(slug: string) {
 
   return toContractRecord(updated);
 }
+
+/**
+ * 계약 진행 단계 판정에 필요한 사실들을 모은다.
+ *
+ * 각 단계가 "실제로 끝났는지" 는 다른 테이블에 흩어져 있다.
+ * 견적서·일정·인보이스는 개수를 세고, 검사·세금계산서·입금은 계약의 상태 필드를 본다.
+ */
+export async function getContractLifecycleSignals(contractId: string) {
+  const contract = await prisma.projectContract.findUnique({
+    where: { id: contractId },
+    select: {
+      inspectionStatus: true,
+      inspectionStartedAt: true,
+      inspectionDoneAt: true,
+      inspectionMemo: true,
+      billingStatus: true,
+      paymentStatus: true,
+      contractStatus: true,
+      inspector: { select: { name: true } },
+      _count: { select: { estimates: true, calendarEvents: true, invoices: true } }
+    }
+  });
+
+  if (!contract) return null;
+
+  const sentInvoices = await prisma.invoice.count({
+    where: { contractId, status: { in: ["SENT", "PAID"] } }
+  });
+
+  return {
+    signals: {
+      estimateCount: contract._count.estimates,
+      scheduleCount: contract._count.calendarEvents,
+      inspectionStatus: contract.inspectionStatus,
+      invoiceCount: contract._count.invoices,
+      invoiceSent: sentInvoices > 0,
+      taxInvoiceIssued: contract.billingStatus === "ISSUED",
+      paymentStatus: contract.paymentStatus,
+      canceled: contract.contractStatus === "CANCELED"
+    },
+    inspection: {
+      status: contract.inspectionStatus,
+      startedAt: contract.inspectionStartedAt ? contract.inspectionStartedAt.toISOString().slice(0, 10) : null,
+      doneAt: contract.inspectionDoneAt ? contract.inspectionDoneAt.toISOString().slice(0, 10) : null,
+      inspector: contract.inspector?.name ?? null,
+      memo: contract.inspectionMemo
+    }
+  };
+}

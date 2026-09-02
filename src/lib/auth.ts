@@ -253,7 +253,10 @@ export const FINANCE_READ_ROLES: UserRole[] = ["CEO", "ADMIN", "ACCOUNTING", "OP
 export const UPLOAD_READ_ROLES: Record<string, UserRole[]> = {
   receipts: ["CEO", "ADMIN", "ACCOUNTING", "OPERATIONS", "AUDITOR"],
   "business-cards": ["CEO", "ADMIN", "OPERATIONS", "ACCOUNTING", "HR", "EMPLOYEE", "AUDITOR"],
-  meetings: ["CEO", "ADMIN", "OPERATIONS", "HR", "EMPLOYEE", "AUDITOR"]
+  meetings: ["CEO", "ADMIN", "OPERATIONS", "HR", "EMPLOYEE", "AUDITOR"],
+  // 검사 보고서는 surveyreport 에서 만들어 거래처로 나간 PDF 사본이다.
+  // 청구 근거 문서이므로 계약·매출을 볼 수 있는 역할이면 열람할 수 있다.
+  inspections: ["CEO", "ADMIN", "OPERATIONS", "ACCOUNTING", "AUDITOR"]
 };
 
 export function withAuth(
